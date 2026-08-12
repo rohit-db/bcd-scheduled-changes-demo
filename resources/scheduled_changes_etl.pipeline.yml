@@ -19,6 +19,7 @@ resources:
         schema: ${var.schema}
         volume: ${var.volume}
 
-      environment:
-        dependencies:
-          - --editable ${workspace.file_path}
+      # No extra environment dependencies: the transformation files (.sql/.py)
+      # are loaded via the `libraries` glob above, and `dlt`/pyspark are provided
+      # by the pipeline runtime. (An `--editable` install was removed — this repo
+      # ships loose transforms, not an installable package.)
