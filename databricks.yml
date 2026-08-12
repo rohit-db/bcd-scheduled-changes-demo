@@ -1,0 +1,42 @@
+# Databricks Asset Bundle for the BCD "Scheduled Changes Detection" demo.
+# A Lakeflow Declarative Pipeline that ingests reservation/PNR segments and
+# detects airline-initiated scheduled changes (old HX/UN -> new HK/KK/TK,
+# same O&D + date, <= 60 min apart), then routes them to a gold decision table.
+#
+# See https://docs.databricks.com/dev-tools/bundles/index.html
+bundle:
+  name: bcd_scheduled_changes_demo
+
+include:
+  - resources/*.yml
+
+# Variables are assigned per-target below.
+variables:
+  catalog:
+    description: The Unity Catalog to use
+  schema:
+    description: The schema (database) to use
+  volume:
+    description: The volume that holds the landing zone for raw segment files
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://fevm-serverless-stable-71zsua.cloud.databricks.com
+    variables:
+      catalog: serverless_stable_71zsua_catalog
+      schema: scheduled_changes
+      volume: segment_landing
+
+  # Placeholder for a future customer/prod target. Fill host + catalog when needed.
+  prod:
+    mode: production
+    workspace:
+      host: https://fevm-serverless-stable-71zsua.cloud.databricks.com
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: serverless_stable_71zsua_catalog
+      schema: scheduled_changes_prod
+      volume: segment_landing
