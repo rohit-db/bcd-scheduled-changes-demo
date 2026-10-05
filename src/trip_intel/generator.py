@@ -2,8 +2,9 @@
 
 seq (the rate source's monotonically increasing `value`) maps to (trip_no, version) so that
 ACTIVE_TRIPS trips are interleaved and each receives VERSIONS_PER_TRIP versions. Most versions
-are noise (only `remarks` changes, like GDS systems re-saving the record); at MUTATION_VERSION
-each trip's scenario mutation lands and persists for the remaining versions.
+are noise (only `remarks` changes, like GDS systems re-saving the record); at the trip's
+mutation_version its scenario mutation lands and persists for the remaining versions. Mutation
+versions vary per trip (3–9) so significant changes arrive continuously, not in one burst per block.
 """
 import json
 from datetime import datetime, timedelta, timezone
@@ -25,6 +26,11 @@ BASE_DATE = datetime(2026, 11, 2, tzinfo=timezone.utc)
 def locate(seq: int) -> tuple[int, int]:
     window, idx = divmod(seq, ACTIVE_TRIPS * VERSIONS_PER_TRIP)
     return window * ACTIVE_TRIPS + idx % ACTIVE_TRIPS, idx // ACTIVE_TRIPS + 1
+
+
+def mutation_version(trip_no: int) -> int:
+    # The first len(SCENARIOS) trips mutate at MUTATION_VERSION; later groups shift across 3..9.
+    return 3 + ((trip_no // len(SCENARIOS)) % 7 + 3) % 7
 
 
 def scenario_for(trip_no: int) -> str:
@@ -63,7 +69,7 @@ def build_payload(trip_no: int, version: int) -> dict:
     traveler = {"name": name, "email": f"{name.split()[0].lower()}.{trip_no}@example.com", "phone": f"+1-555-{trip_no % 10000:04d}"}
     payment = {"type": "CC", "last4": f"{1000 + trip_no % 9000}"}
 
-    if version >= MUTATION_VERSION:
+    if version >= mutation_version(trip_no):
         scenario = scenario_for(trip_no)
         if scenario == "schedule_change":
             segments[0]["status"] = {"code": "HX"}

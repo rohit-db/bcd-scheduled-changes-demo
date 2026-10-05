@@ -49,3 +49,20 @@ def test_versions_after_mutation_only_touch_noise():
     assert a["remarks"] != b["remarks"]
     a.pop("remarks"); b.pop("remarks"); a["identification"].pop("version"); b["identification"].pop("version")
     assert a == b
+
+
+def test_mutation_versions_are_spread_across_trips():
+    versions = {g.mutation_version(t) for t in range(g.ACTIVE_TRIPS)}
+    assert len(versions) >= 5
+    assert min(versions) >= 2 and max(versions) < g.VERSIONS_PER_TRIP
+    assert all(g.mutation_version(t) == g.MUTATION_VERSION for t in range(len(g.SCENARIOS)))
+
+
+def test_later_trip_mutates_at_its_own_version():
+    trip = len(g.SCENARIOS) + g.SCENARIOS.index("schedule_change")
+    v = g.mutation_version(trip)
+    assert v != g.MUTATION_VERSION
+    before = to_snapshot(g.build_payload(trip, v - 1))
+    after = to_snapshot(g.build_payload(trip, v))
+    assert [s["status"] for s in before["segments"]] == ["HK", "HK"]
+    assert {s["status"] for s in after["segments"]} == {"HK", "HX"}

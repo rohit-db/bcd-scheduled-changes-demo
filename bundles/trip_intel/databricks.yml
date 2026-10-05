@@ -62,7 +62,7 @@ resources:
               - --secret-scope
               - ${var.secret_scope}
               - --checkpoint
-              - ${var.checkpoint_root}/rtm_v3
+              - ${var.checkpoint_root}/rtm_v4
           libraries:
             - pypi:
                 package: psycopg[binary]>=3.2

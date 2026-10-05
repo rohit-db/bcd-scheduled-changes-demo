@@ -1,0 +1,12 @@
+command: ["python", "-m", "app.serve"]
+env:
+  - name: LAKEBASE_HOST
+    value: ep-spring-rice-d1tg6e60.database.us-west-2.cloud.databricks.com
+  - name: LAKEBASE_PASSWORD
+    valueFrom: lakebase-password
+  - name: LLM_ENDPOINT
+    valueFrom: llm
+  - name: WAREHOUSE_ID
+    valueFrom: warehouse
+  - name: ANALYTICS_SCHEMA
+    value: users.rohit_bhagwat
