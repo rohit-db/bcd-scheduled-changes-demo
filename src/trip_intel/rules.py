@@ -1,7 +1,8 @@
 """Business rules over trip versions: evaluation context, edge-triggered firing, hot-reload cache.
 
-A rule fires when its JSON Logic is true for the new version and was false for the previous one,
-so "segment without a seat" fires once — not on every subsequent GDS re-save.
+Rules over trip state (only `trip.*` vars) are edge-triggered: they fire when true for the new version
+and false for the previous one, so "segment without a seat" fires once — not on every GDS re-save.
+Rules that read `change.*` describe the change itself, so they are level-triggered (every matching version).
 """
 import time
 from dataclasses import dataclass
@@ -22,12 +23,27 @@ def context(snapshot: dict | None, change: dict) -> dict:
     return {"trip": snapshot or {}, "change": change}
 
 
+def _references_change(logic) -> bool:
+    if isinstance(logic, list):
+        return any(_references_change(x) for x in logic)
+    if isinstance(logic, dict):
+        for op, args in logic.items():
+            if op == "var":
+                path = args[0] if isinstance(args, list) and args else args
+                if isinstance(path, str) and (path == "change" or path.startswith("change.")):
+                    return True
+            elif _references_change(args):
+                return True
+    return False
+
+
 def newly_matched(rules: list[Rule], prev_ctx: dict, new_ctx: dict) -> tuple[list[Rule], list[dict]]:
     fired, errors = [], []
     for rule in rules:
         try:
             now_true = truthy(apply(rule.logic, new_ctx))
-            was_true = truthy(apply(rule.logic, prev_ctx)) if prev_ctx["trip"] else False
+            edge = prev_ctx["trip"] and not _references_change(rule.logic)
+            was_true = truthy(apply(rule.logic, prev_ctx)) if edge else False
         except Exception as exc:  # a bad rule must never stop the stream
             errors.append({"rule_id": rule.rule_id, "error": str(exc)})
             continue

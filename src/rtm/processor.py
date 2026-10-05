@@ -42,25 +42,37 @@ class TripProcessor(StatefulProcessor):
     def handleInputRows(self, key, rows, timerValues):
         prev = json.loads(self.prev_state.get()[0]) if self.prev_state.exists() else None
         for row in sorted(rows, key=lambda r: r.version or 0):
-            new = parse(row.payload)
-            change = diff(prev, new)
-            fired, errors = [], []
-            if "STALE_VERSION" not in change["tags"]:
-                fired, errors = newly_matched(self.rules.get(), context(prev, EMPTY_CHANGE), context(new, change))
-                prev = new
-                self.prev_state.update((json.dumps(new),))
-            for err in errors:
-                print(f"RULE_ERROR {err}", flush=True)
-            yield Row(
-                trip_id=key[0],
-                version=new["version"],
-                event_ts=row.event_ts,
-                processed_ts=datetime.now(timezone.utc),
-                snapshot_json=json.dumps(new),
-                change_json=json.dumps(change),
-                rule_hits_json=json.dumps([{"rule_id": r.rule_id, "name": r.name} for r in fired]),
-                actions_json=json.dumps(build_actions(new, change, fired) if fired or change["schedule_changes"] else []),
-            )
+            try:
+                out, new_state = self._process(prev, row, key)
+            except Exception as exc:  # one malformed record must not fail (and endlessly replay) the stream
+                print(f"BAD_RECORD trip={key[0]} version={row.version}: {exc!r}", flush=True)
+                continue
+            if new_state is not None:
+                prev = new_state
+                self.prev_state.update((json.dumps(new_state),))
+            yield out
+
+    def _process(self, prev, row, key):
+        new = parse(row.payload)
+        change = diff(prev, new)
+        fired, errors = [], []
+        new_state = None
+        if "STALE_VERSION" not in change["tags"]:
+            fired, errors = newly_matched(self.rules.get(), context(prev, EMPTY_CHANGE), context(new, change))
+            new_state = new
+        for err in errors:
+            print(f"RULE_ERROR {err}", flush=True)
+        out = Row(
+            trip_id=key[0],
+            version=new["version"],
+            event_ts=row.event_ts,
+            processed_ts=datetime.now(timezone.utc),
+            snapshot_json=json.dumps(new),
+            change_json=json.dumps(change),
+            rule_hits_json=json.dumps([{"rule_id": r.rule_id, "name": r.name} for r in fired]),
+            actions_json=json.dumps(build_actions(new, change, fired) if fired or change["schedule_changes"] else []),
+        )
+        return out, new_state
 
     def close(self) -> None:
         pass

@@ -77,3 +77,14 @@ def test_processed_ts_is_utc(monkeypatch):
     proc = _processor(monkeypatch)
     out = list(proc.handleInputRows(("T0000000",), iter([_row(0, 1)]), None))[0]
     assert out.processed_ts.tzinfo == timezone.utc
+
+
+def test_malformed_record_is_skipped_and_stream_continues(monkeypatch):
+    proc = _processor(monkeypatch)
+    key = ("T0000000",)
+    bad = Row(trip_id="T0000000", version=2, payload='{"identification": {"id": "T0000000", "version": 2}, "segments": ["oops"]}',
+              event_ts=datetime(2026, 10, 5, 12, 0))
+    assert list(proc.handleInputRows(key, iter([_row(0, 1), bad, _row(0, 3)]), None)) and True
+    outs = list(proc.handleInputRows(key, iter([_row(0, 4)]), None))
+    assert json.loads(proc.prev_state.get()[0])["version"] == 4
+    assert outs[0].version == 4

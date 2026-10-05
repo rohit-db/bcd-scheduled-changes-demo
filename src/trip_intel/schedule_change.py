@@ -35,8 +35,8 @@ def detect(prev: dict, new: dict) -> list[dict]:
     for o in olds:
         for n in news:
             o_ts, n_ts = _ts(o["start"]), _ts(n["start"])
-            if o_ts is None or n_ts is None:
-                continue
+            if o_ts is None or n_ts is None or (o_ts.tzinfo is None) != (n_ts.tzinfo is None):
+                continue  # unparseable or mixed naive/aware timestamps: not comparable
             if (o["origin"], o["destination"], o["start"][:10]) != (n["origin"], n["destination"], n["start"][:10]):
                 continue
             delta = (n_ts - o_ts).total_seconds()

@@ -1,8 +1,15 @@
 const $ = (sel) => document.querySelector(sel);
 const api = async (path, opts = {}) => {
   const res = await fetch(path, { headers: { "content-type": "application/json" }, ...opts });
-  if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
-  return res.json();
+  const body = await res.text();
+  let data;
+  try { data = JSON.parse(body); } catch { data = null; }
+  if (!res.ok) {
+    const detail = data?.detail;
+    const msg = Array.isArray(detail) ? detail.map((d) => d.msg || JSON.stringify(d)).join("; ") : detail;
+    throw new Error(msg || body.slice(0, 200) || res.statusText);
+  }
+  return data;
 };
 const fmtMs = (v) => (v == null ? "–" : `${Math.round(v)} ms`);
 const fmtAge = (s) => (s == null ? "–" : s < 120 ? `${Math.round(s)} s ago` : `${Math.round(s / 60)} min ago`);

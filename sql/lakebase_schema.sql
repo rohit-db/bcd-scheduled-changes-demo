@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS rule_hits (
   matched_ts timestamptz NOT NULL,
   UNIQUE (rule_id, trip_id, version)
 );
+CREATE INDEX IF NOT EXISTS rule_hits_trip_version ON rule_hits (trip_id, version);
 
 CREATE TABLE IF NOT EXISTS action_outbox (
   id          text PRIMARY KEY,

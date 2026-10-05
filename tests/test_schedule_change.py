@@ -60,3 +60,9 @@ def test_generator_schedule_change_detected():
     prev = to_snapshot(g.build_payload(trip, g.MUTATION_VERSION - 1))
     new = to_snapshot(g.build_payload(trip, g.MUTATION_VERSION))
     assert len(detect(prev, new)) == 1
+
+
+def test_mixed_timezone_awareness_does_not_raise():
+    prev = _snap(_seg("A", "HK", "2026-11-02T06:00:00+00:00"))
+    new = _snap(_seg("A", "HX", "2026-11-02T06:00:00+00:00"), _seg("B", "HK", "2026-11-02T06:30:00"))
+    assert detect(prev, new) == []

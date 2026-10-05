@@ -62,3 +62,18 @@ def test_rule_cache_refreshes_and_survives_loader_errors():
     assert cache.get() == [SCHED]          # loader failed -> keep last good
     now[0] = 12
     assert cache.get() == [SCHED, NO_SEAT]
+
+
+def test_negated_change_rule_fires_on_significant_version():
+    significant = Rule("r-sig", "Any significant change",
+                       {"!": {"in": ["NO_SIGNIFICANT_CHANGE", {"var": "change.tags"}]}}, {"type": "ALERT_OPS"})
+    fired, errors = newly_matched([significant], *_ctxs("schedule_change", g.MUTATION_VERSION - 1, g.MUTATION_VERSION))
+    assert [r.rule_id for r in fired] == ["r-sig"] and errors == []
+
+
+def test_change_rules_are_level_triggered_but_trip_rules_edge_triggered():
+    noise_prev, noise_new = _ctxs("seat_removed", g.MUTATION_VERSION, g.MUTATION_VERSION + 1)
+    significant = Rule("r-sig", "Any significant change",
+                       {"!": {"in": ["NO_SIGNIFICANT_CHANGE", {"var": "change.tags"}]}}, {})
+    fired, _ = newly_matched([significant, NO_SEAT], noise_prev, noise_new)
+    assert fired == []   # noise version: change rule false, seat rule already true before

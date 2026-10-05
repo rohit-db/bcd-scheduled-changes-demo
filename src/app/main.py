@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app import db
+from app.feed import FeedCursor
 from app.freshness import BackgroundTTL
 from app.rule_drafting import SYSTEM_PROMPT, parse_draft
 from trip_intel.jsonlogic import apply, truthy, validate
@@ -47,17 +48,16 @@ def index():
 @app.get("/api/stream")
 async def stream():
     async def events():
-        last = (db.query("SELECT coalesce(max(id), 0) AS m FROM change_events")[0]["m"]) - 50
+        start = (await asyncio.to_thread(db.query, "SELECT coalesce(max(id), 0) AS m FROM change_events"))[0]["m"]
+        cursor = FeedCursor(start=start - 50)
         while True:
             rows = await asyncio.to_thread(
                 db.query, f"SELECT {EVENT_COLS} FROM change_events e WHERE id > %s AND {SIGNIFICANT} ORDER BY id LIMIT 200",
-                (last,))
-            for row in rows:
-                last = row["id"]
+                (cursor.since(),))
+            fresh = cursor.accept(rows)
+            for row in fresh:
                 yield f"data: {json.dumps(row, default=str)}\n\n"
-            if not rows:
-                max_id = await asyncio.to_thread(db.query, "SELECT coalesce(max(id), 0) AS m FROM change_events")
-                last = max(last, max_id[0]["m"])
+            if not fresh:
                 yield ": keepalive\n\n"
             await asyncio.sleep(0.2)
 
@@ -126,11 +126,13 @@ def list_rules():
 
 @app.post("/api/rules/draft")
 def draft_rule(body: DraftIn):
-    w = WorkspaceClient()
-    resp = w.serving_endpoints.query(
-        name=LLM_ENDPOINT, max_tokens=800,
-        messages=[ChatMessage(role=ChatMessageRole.SYSTEM, content=SYSTEM_PROMPT),
-                  ChatMessage(role=ChatMessageRole.USER, content=body.text)])
+    try:
+        resp = WorkspaceClient().serving_endpoints.query(
+            name=LLM_ENDPOINT, max_tokens=800,
+            messages=[ChatMessage(role=ChatMessageRole.SYSTEM, content=SYSTEM_PROMPT),
+                      ChatMessage(role=ChatMessageRole.USER, content=body.text)])
+    except Exception as exc:  # throttling, timeout, permissions: show the reason, not a bare 500
+        raise HTTPException(502, f"model endpoint {LLM_ENDPOINT} failed: {exc}")
     try:
         return parse_draft(resp.choices[0].message.content)
     except ValueError as exc:
