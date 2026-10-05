@@ -18,6 +18,8 @@ variables:
     description: The schema (database) to use
   volume:
     description: The volume that holds the landing zone for raw segment files
+  lakebase_host:
+    description: Lakebase read/write DNS for instance bcd-trip-intel
 
 targets:
   dev:
@@ -29,6 +31,7 @@ targets:
       catalog: serverless_stable_71zsua_catalog
       schema: scheduled_changes
       volume: segment_landing
+      lakebase_host: ep-old-cherry-d8ip1i34.database.us-east-2.cloud.databricks.com
 
   # Placeholder for a future customer/prod target. Fill host + catalog when needed.
   prod:
@@ -40,3 +43,4 @@ targets:
       catalog: serverless_stable_71zsua_catalog
       schema: scheduled_changes_prod
       volume: segment_landing
+      lakebase_host: ep-old-cherry-d8ip1i34.database.us-east-2.cloud.databricks.com
