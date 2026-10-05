@@ -1,0 +1,108 @@
+{
+  "version": 2,
+  "config": {
+    "sample_questions": [
+      {
+        "id": "10000000000000000000000000000001",
+        "question": [
+          "What share of booking versions today were significant vs noise?"
+        ]
+      },
+      {
+        "id": "10000000000000000000000000000002",
+        "question": [
+          "Which carriers had the most schedule changes today?"
+        ]
+      },
+      {
+        "id": "10000000000000000000000000000003",
+        "question": [
+          "Which routes had the most seat removals?"
+        ]
+      },
+      {
+        "id": "10000000000000000000000000000004",
+        "question": [
+          "How many versions does a trip get on average before the first significant change?"
+        ]
+      }
+    ]
+  },
+  "data_sources": {
+    "tables": [
+      {
+        "identifier": "users.rohit_bhagwat.gold_daily_change_summary",
+        "column_configs": [
+          {
+            "column_name": "tag",
+            "description": [
+              "Change tag. NO_SIGNIFICANT_CHANGE = a GDS re-save with no business change (noise). SCHEDULE_CHANGE = airline-initiated re-protection (old flight HX/UN replaced by a confirmed flight on the same route and day within 60 min). NEW_TRIP = first version of a booking."
+            ]
+          },
+          {
+            "column_name": "versions",
+            "description": [
+              "Number of booking versions carrying this tag. A version can carry several tags, so do not sum across tags to count versions."
+            ]
+          }
+        ]
+      },
+      {
+        "identifier": "users.rohit_bhagwat.gold_version_changes",
+        "column_configs": [
+          {
+            "column_name": "is_significant",
+            "description": [
+              "True when the version changed something that matters (anything other than NO_SIGNIFICANT_CHANGE / STALE_VERSION). Use this to count significant vs noise versions."
+            ]
+          },
+          {
+            "column_name": "schedule_change_count",
+            "description": [
+              "Number of airline schedule changes detected in this version (usually 0 or 1)."
+            ]
+          },
+          {
+            "column_name": "tags",
+            "description": [
+              "Array of change tags for this version; use array_contains(tags, 'SCHEDULE_CHANGE') to filter."
+            ]
+          }
+        ]
+      },
+      {
+        "identifier": "users.rohit_bhagwat.silver_pnr_segments",
+        "column_configs": [
+          {
+            "column_name": "status",
+            "description": [
+              "Segment status code: HK/KK/TK confirmed, HX/UN cancelled or unable."
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "instructions": {
+    "example_question_sqls": [
+      {
+        "id": "20000000000000000000000000000001",
+        "question": [
+          "What share of booking versions were significant vs noise?"
+        ],
+        "sql": [
+          "SELECT date(gold_version_changes.ingested_at) AS day, count(*) AS versions, sum(CASE WHEN gold_version_changes.is_significant THEN 1 ELSE 0 END) AS significant, round(100.0 * sum(CASE WHEN gold_version_changes.is_significant THEN 1 ELSE 0 END) / count(*), 1) AS significant_pct FROM users.rohit_bhagwat.gold_version_changes GROUP BY 1 ORDER BY 1 DESC"
+        ]
+      },
+      {
+        "id": "20000000000000000000000000000002",
+        "question": [
+          "Which carriers had the most schedule changes?"
+        ],
+        "sql": [
+          "SELECT gold_version_changes.carrier, sum(gold_version_changes.schedule_change_count) AS schedule_changes FROM users.rohit_bhagwat.gold_version_changes GROUP BY 1 ORDER BY 2 DESC"
+        ]
+      }
+    ]
+  }
+}
