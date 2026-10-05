@@ -31,3 +31,9 @@ def test_rejects_missing_keys():
 def test_rejects_non_json():
     with pytest.raises(ValueError):
         parse_draft("I cannot do that")
+
+
+def test_accepts_content_block_list_from_chat_endpoint():
+    blocks = [{"type": "reasoning", "summary": []},
+              {"type": "text", "text": '{"name": "n", "json_logic": {"missing": "seat"}, "explanation": "e"}'}]
+    assert parse_draft(blocks)["json_logic"] == {"missing": "seat"}

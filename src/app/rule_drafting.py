@@ -39,7 +39,15 @@ Respond with ONLY a JSON object: {{"name": short title, "json_logic": object, "e
 """
 
 
-def parse_draft(text: str) -> dict:
+def _as_text(content) -> str:
+    # Chat endpoints return either a string or a list of content blocks ({"type": "text", "text": ...}).
+    if isinstance(content, list):
+        return "".join(b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text")
+    return content or ""
+
+
+def parse_draft(content) -> dict:
+    text = _as_text(content)
     start = text.find("{")
     if start < 0:
         raise ValueError("model did not return a JSON object")

@@ -34,7 +34,13 @@ async function refreshKpis() {
 setInterval(refreshKpis, 2000);
 refreshKpis();
 
+// Pause the feed while the pointer is over it so a row can be clicked; buffered events show on leave.
+let feedPaused = false, feedBuffer = [];
+$("#feed").addEventListener("mouseenter", () => { feedPaused = true; });
+$("#feed").addEventListener("mouseleave", () => { feedPaused = false; feedBuffer.splice(0).forEach(addFeedItem); });
+
 function addFeedItem(ev) {
+  if (feedPaused) { feedBuffer.push(ev); return; }
   const li = document.createElement("li");
   const shownMs = Date.now() - new Date(ev.event_ts).getTime();
   const tags = ev.tags.map((t) => `<span class="tag ${t}">${t}</span>`).join("");
@@ -54,8 +60,13 @@ async function loadTrip(tripId) {
     <div class="ver ${v.tags.includes("NO_SIGNIFICANT_CHANGE") ? "noise" : ""}">
       <div><b>v${v.to_version}</b> ${v.tags.map((x) => `<span class="tag ${x}">${x}</span>`).join("")}
         ${v.rule_hits.map((h) => `<span class="hit">⚑ ${esc(h.name)}</span>`).join("")}</div>
-      ${v.changes.map((c) => `<div class="chg">${esc(c.segment ?? "")} <code>${esc(c.field)}</code>: ${esc(c.old)} → ${esc(c.new)}</div>`).join("")}
+      ${v.changes.map((c) => `<div class="chg">${describeChange(c)}</div>`).join("")}
     </div>`).join("");
+}
+
+function describeChange(c) {
+  if (c.field === "*") return `${esc(c.segment)} — segment ${c.new === "added" ? "added" : "removed"}`;
+  return `${esc(c.segment ?? "")} <code>${esc(c.field)}</code>: ${esc(c.old ?? "—")} → ${esc(c.new ?? "—")}`;
 }
 
 // ---- rule studio
