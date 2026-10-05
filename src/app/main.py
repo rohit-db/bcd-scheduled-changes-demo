@@ -9,13 +9,13 @@ from pathlib import Path
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.serving import ChatMessage, ChatMessageRole
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app import db
-from app.feed import FeedCursor
+from app.feed import FeedBroadcaster, TTLValue
 from app.freshness import BackgroundTTL
 from app.rule_drafting import SYSTEM_PROMPT, parse_draft
 from trip_intel.jsonlogic import apply, truthy, validate
@@ -29,10 +29,28 @@ EVENT_COLS = ("id, trip_id, from_version, to_version, tags, changes, schedule_ch
 SIGNIFICANT = "NOT (tags <@ ARRAY['NO_SIGNIFICANT_CHANGE','STALE_VERSION'])"
 
 
+def _fetch_feed(since_id: int) -> list[dict]:
+    return db.query(f"SELECT {EVENT_COLS} FROM change_events e WHERE id > %s AND {SIGNIFICANT} ORDER BY id LIMIT 200",
+                    (since_id,))
+
+
+async def _run_feed(broadcaster: FeedBroadcaster):
+    while True:
+        try:
+            await broadcaster.tick()
+        except Exception as exc:  # keep the shared poller alive through transient DB errors
+            print(f"FEED_ERROR {exc!r}", flush=True)
+        await asyncio.sleep(0.25)
+
+
 @asynccontextmanager
-async def lifespan(_):
+async def lifespan(app_):
     db.pool.open()
+    start = (await asyncio.to_thread(db.query, "SELECT coalesce(max(id), 0) AS m FROM change_events"))[0]["m"]
+    app_.state.feed = FeedBroadcaster(_fetch_feed, start=start)
+    task = asyncio.create_task(_run_feed(app_.state.feed))
     yield
+    task.cancel()
     db.pool.close()
 
 
@@ -46,33 +64,44 @@ def index():
 
 
 @app.get("/api/stream")
-async def stream():
+async def stream(request: Request):
+    feed: FeedBroadcaster = request.app.state.feed
+
     async def events():
-        start = (await asyncio.to_thread(db.query, "SELECT coalesce(max(id), 0) AS m FROM change_events"))[0]["m"]
-        cursor = FeedCursor(start=start - 50)
-        while True:
-            rows = await asyncio.to_thread(
-                db.query, f"SELECT {EVENT_COLS} FROM change_events e WHERE id > %s AND {SIGNIFICANT} ORDER BY id LIMIT 200",
-                (cursor.since(),))
-            fresh = cursor.accept(rows)
-            for row in fresh:
-                yield f"data: {json.dumps(row, default=str)}\n\n"
-            if not fresh:
-                yield ": keepalive\n\n"
-            await asyncio.sleep(0.2)
+        backlog = await asyncio.to_thread(
+            db.query, f"SELECT {EVENT_COLS} FROM change_events e WHERE {SIGNIFICANT} ORDER BY id DESC LIMIT 20")
+        for row in reversed(backlog):
+            yield f"data: {json.dumps(row, default=str)}\n\n"
+        q = feed.subscribe()
+        try:
+            while True:
+                try:
+                    row = await asyncio.wait_for(q.get(), timeout=5)
+                    yield f"data: {json.dumps(row, default=str)}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+        finally:
+            feed.unsubscribe(q)
 
     return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
 
-@app.get("/api/kpis")
-def kpis():
-    row = db.query(f"""
+def _compute_kpis():
+    return db.query(f"""
         SELECT count(*) AS versions_5m,
                count(*) FILTER (WHERE {SIGNIFICANT}) AS significant_5m,
                percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM detected_ts - event_ts) * 1000) AS p50_ms,
                percentile_cont(0.95) WITHIN GROUP (ORDER BY extract(epoch FROM detected_ts - event_ts) * 1000) AS p95_ms,
                extract(epoch FROM now() - max(written_ts)) AS rtm_freshness_s
         FROM change_events WHERE written_ts > now() - interval '5 minutes'""")[0]
+
+
+_kpis = TTLValue(_compute_kpis, ttl_seconds=1.5)
+
+
+@app.get("/api/kpis")
+def kpis():
+    row = dict(_kpis.get())
     last = _batch_last_written.get()
     row["batch_freshness_s"] = (datetime.now(timezone.utc) - last).total_seconds() if last else None
     return row

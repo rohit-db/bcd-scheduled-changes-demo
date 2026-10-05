@@ -46,8 +46,11 @@ let feedPaused = false, feedBuffer = [];
 $("#feed").addEventListener("mouseenter", () => { feedPaused = true; });
 $("#feed").addEventListener("mouseleave", () => { feedPaused = false; feedBuffer.splice(0).forEach(addFeedItem); });
 
+const shownIds = new Set();
 function addFeedItem(ev) {
   if (feedPaused) { feedBuffer.push(ev); return; }
+  if (shownIds.has(ev.id)) return;   // reconnects replay recent events; show each once
+  shownIds.add(ev.id);
   const li = document.createElement("li");
   const shownMs = Date.now() - new Date(ev.event_ts).getTime();
   const tags = ev.tags.map((t) => `<span class="tag ${t}">${t}</span>`).join("");
