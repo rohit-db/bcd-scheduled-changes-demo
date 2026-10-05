@@ -15,7 +15,9 @@ class LakebaseSink:
 
     def process(self, row):
         out = row.asDict()
-        with self.conn.cursor() as cur:
+        # Pipeline mode sends all of a row's statements in one network round trip instead of one each,
+        # so a busy Lakebase slows the sink far less (one writer fell ~90 s behind without it at 100/s).
+        with self.conn.pipeline(), self.conn.cursor() as cur:
             for sql, params in statements(out):
                 cur.execute(sql, params)
         self.conn.commit()

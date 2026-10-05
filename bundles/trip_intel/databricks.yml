@@ -9,15 +9,20 @@ sync:
     - ../../src
 
 variables:
+  catalog:
+    description: Catalog for volumes and pipeline tables
+  schema:
+    description: Schema for volumes and pipeline tables
   lakebase_host:
-    description: Lakebase read/write DNS for instance rohit-bcd-trip-intel
-    default: ep-spring-rice-d1tg6e60.database.us-west-2.cloud.databricks.com
+    description: Lakebase read/write DNS for this target's instance
   secret_scope:
-    default: rohit-bcd-trip-intel
+    description: Secret scope holding lakebase-password, lakebase-host, analytics-schema
+  app_name:
+    description: Databricks App name (unique per workspace)
   checkpoint_root:
-    default: /Volumes/users/rohit_bhagwat/trip_intel_checkpoints
-  analytics_schema:
-    default: users.rohit_bhagwat
+    default: /Volumes/${var.catalog}/${var.schema}/trip_intel_checkpoints
+  landing_path:
+    default: /Volumes/${var.catalog}/${var.schema}/trip_intel_landing/pnr_versions
 
 targets:
   e2demo:
@@ -25,35 +30,53 @@ targets:
     default: true
     workspace:
       host: https://e2-demo-field-eng.cloud.databricks.com
+    variables:
+      catalog: users
+      schema: rohit_bhagwat
+      lakebase_host: ep-spring-rice-d1tg6e60.database.us-west-2.cloud.databricks.com
+      secret_scope: rohit-bcd-trip-intel
+      app_name: rohit-bcd-trip-intel
+
+  # BCD's UAT workspace (bcd-api-uat). Everything lands in schema bcd_api_uat.databricks_demo.
+  uat:
+    mode: development
+    workspace:
+      host: https://dbc-24f136f2-50df.cloud.databricks.com
+    variables:
+      catalog: bcd_api_uat
+      schema: databricks_demo
+      lakebase_host: TBD-after-setup
+      secret_scope: databricks-trip-intel
+      app_name: databricks-bcd-trip-intel
 
 resources:
   volumes:
     trip_intel_checkpoints:
-      catalog_name: users
-      schema_name: rohit_bhagwat
+      catalog_name: ${var.catalog}
+      schema_name: ${var.schema}
       name: trip_intel_checkpoints
     trip_intel_landing:
-      catalog_name: users
-      schema_name: rohit_bhagwat
+      catalog_name: ${var.catalog}
+      schema_name: ${var.schema}
       name: trip_intel_landing
 
   pipelines:
     # Batch lane: Lakeflow pipeline (serverless, triggered hourly) — bronze -> silver -> gold.
     trip_intel_batch_pipeline:
       name: trip_intel_batch_pipeline
-      catalog: users
-      schema: rohit_bhagwat
+      catalog: ${var.catalog}
+      schema: ${var.schema}
       serverless: true
       root_path: ../../src
       libraries:
         - glob:
             include: ../../src/batch_lane/transformations/**
       configuration:
-        landing_path: /Volumes/users/rohit_bhagwat/trip_intel_landing/pnr_versions
+        landing_path: ${var.landing_path}
 
   sql_warehouses:
     trip_intel_wh:
-      name: rohit-bcd-trip-intel-wh
+      name: ${var.app_name}-wh
       cluster_size: 2X-Small
       max_num_clusters: 1
       auto_stop_mins: 10
@@ -96,7 +119,7 @@ resources:
               spark.master: "local[*, 4]"
               spark.databricks.cluster.profile: singleNode
               spark.databricks.streaming.realTimeMode.enabled: "true"
-              spark.sql.shuffle.partitions: "2"
+              spark.sql.shuffle.partitions: "4"
               spark.sql.streaming.stateStore.providerClass: org.apache.spark.sql.execution.streaming.state.RocksDBStateStoreProvider
             cluster_log_conf:
               volumes:
@@ -139,7 +162,7 @@ resources:
           environment_key: default
           spark_python_task:
             python_file: ../../src/batch_lane/land_versions.py
-            parameters: ["--landing-path", "/Volumes/users/rohit_bhagwat/trip_intel_landing/pnr_versions"]
+            parameters: ["--landing-path", "${var.landing_path}"]
         - task_key: refresh_pipeline
           depends_on:
             - task_key: land_versions
@@ -153,7 +176,7 @@ resources:
   apps:
     # Ops Console, Rule Studio, Traveler view. App root is src/ so it can import trip_intel.
     trip_intel_app:
-      name: rohit-bcd-trip-intel
+      name: ${var.app_name}
       description: BCD real-time trip intelligence demo
       source_code_path: ../../src
       resources:
@@ -161,6 +184,16 @@ resources:
           secret:
             scope: ${var.secret_scope}
             key: lakebase-password
+            permission: READ
+        - name: lakebase-host
+          secret:
+            scope: ${var.secret_scope}
+            key: lakebase-host
+            permission: READ
+        - name: analytics-schema
+          secret:
+            scope: ${var.secret_scope}
+            key: analytics-schema
             permission: READ
         - name: llm
           serving_endpoint:
