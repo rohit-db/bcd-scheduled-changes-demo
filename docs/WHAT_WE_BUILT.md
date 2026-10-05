@@ -68,7 +68,7 @@ Legend: ✅ built and shown · 🟡 partly / talk track only · ❌ not built ye
 | 1 | Batch vs real-time — which to build? | ✅ | Ops Console: ~190 ms real-time lane vs hourly lane freshness, side by side |
 | 2 | Cluster vs serverless | ✅ | RTM on 1 classic node; dispatcher, analytics, app serverless — "per use case" |
 | 3 | Which is cheaper? | ❌ | Cost table in runbook is empty — needs ≥1 h of billing data, then a query |
-| 4 | Data volume: 1–1.5M/day, 15/s normal, 50–100/s peak | 🟡 | Ran at 15/s. **100/s not yet tested** |
+| 4 | Data volume: 1–1.5M/day, 15/s normal, 50–100/s peak | ✅ | One small node: 15/s → p50 190 ms; 100/s → p50 73 ms, p99 128 ms |
 | 5 | "Ingest once, many consumers" (your whiteboard: Kinesis → bronze → several pipelines) | ✅ | Bronze table keeps every raw version; the ms lane reads the source directly (RTM can't read Delta), the batch lane reads bronze |
 | 6 | Read from their Kinesis stream | 🟡 | Code path exists (EPAM's exact options), **never run**; UAT finale is a stretch |
 | 7 | Deeply nested JSON gets flattened | ✅ | Parser flattens the PNR into a snapshot (our payload is simpler than real PNRs) |
@@ -93,8 +93,7 @@ Legend: ✅ built and shown · 🟡 partly / talk track only · ❌ not built ye
 | 26 | EPAM's job design (one shared cluster, manual runs, redeploys) | 🟡 | Talk track: separate ingest from consumers; run ingest continuously |
 | 27 | EPAM detection logic (HK → TK/UN/HX vs HX/UN → HK/KK/TK) | 🟡 | Ours follows the given definition; ask which is intended (in runbook) |
 
-**Remaining gaps before Thursday:** cost numbers (#3), 100/s load-test result (#4), and the follow-up
-links (#23). Per-consumer rule sets (#12/#13) and a real Lambda call (#16) are larger and better
+**Remaining gaps before Thursday:** cost numbers (#3) and the follow-up links (#23). Per-consumer rule sets (#12/#13) and a real Lambda call (#16) are larger and better
 positioned as "next step with your team".
 
 ## Demo flow (55 min) — see `DEMO_RUNBOOK.md` for commands

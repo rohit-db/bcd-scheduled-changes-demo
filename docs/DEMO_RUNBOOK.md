@@ -61,9 +61,18 @@ group by all
 
 | Lane | Compute | DBU/hr | $/hr list | Notes |
 |---|---|---|---|---|
-| Real-time (RTM) | 1× m5d.2xlarge classic, 24×7 | | + EC2 | 15/s measured; 100/s peak not yet tested |
+| Real-time (RTM) | 1× m5d.2xlarge classic, 24×7 | | + EC2 | Same node handles BCD's 100/s peak (measured below) |
 | Batch pipeline hourly | Serverless pipeline + job | | | ~2 min/run |
 | Dispatcher | Serverless jobs | | | |
+
+## Measured latency (single m5d.2xlarge, 2026-10-05)
+| Rate | Event → detected p50 | p95 | p99 | Event → in Lakebase p50 |
+|---|---|---|---|---|
+| 15 versions/s (normal) | 190 ms | 270 ms | — | 294 ms |
+| 100 versions/s (holiday peak) | 73 ms | 109 ms | 128 ms | 214 ms |
+
+To rerun the peak test: cancel the RTM run, then
+`databricks jobs run-now --json '{"job_id": 598063876765561, "python_params": ["--source","rate","--rows-per-second","100","--lakebase-host","<host>","--secret-scope","rohit-bcd-trip-intel","--checkpoint","/Volumes/users/rohit_bhagwat/trip_intel_checkpoints/rtm_load100b"]}'`
 
 ## Questions to ask
 - EPAM's detection pairs prior HK → newer TK/UN/HX; the definition we were given is HX/UN → HK/KK/TK. Which is intended?
