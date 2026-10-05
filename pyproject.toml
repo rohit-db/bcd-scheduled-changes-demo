@@ -4,8 +4,7 @@ version = "0.0.1"
 authors = [{ name = "rohit.bhagwat@databricks.com" }]
 requires-python = ">=3.10,<=3.13"
 dependencies = [
-    # Runtime deps for jobs/pipelines go here. For pipelines, prefer the
-    # 'environment' block in the pipeline.yml (deps are cached in dev).
+    "psycopg[binary]>=3.2",
 ]
 
 [dependency-groups]
@@ -21,3 +20,10 @@ build-backend = "hatchling.build"
 
 [tool.black]
 line-length = 125
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trip_intel", "src/rtm"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
