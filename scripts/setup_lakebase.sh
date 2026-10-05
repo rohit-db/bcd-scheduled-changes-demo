@@ -4,8 +4,8 @@
 set -euo pipefail
 P=${P:-fevm-stable-71zsua}
 PY=${PY:-.venv/bin/python}
-INSTANCE=bcd-trip-intel
-SCOPE=bcd-trip-intel
+INSTANCE=${INSTANCE:-bcd-trip-intel}
+SCOPE=${SCOPE:-bcd-trip-intel}
 
 databricks database get-database-instance $INSTANCE --profile $P >/dev/null 2>&1 || \
   databricks database create-database-instance $INSTANCE --capacity CU_1 --enable-pg-native-login --no-wait --profile $P

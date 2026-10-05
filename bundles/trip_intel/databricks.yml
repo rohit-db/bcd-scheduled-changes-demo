@@ -1,0 +1,152 @@
+# BCD real-time trip-intelligence demo — everything on e2-demo-field-eng.
+# FEVM serverless workspaces reject classic clusters (Real-Time Mode is classic-only), and FEVM's IP
+# access list blocks e2-demo from reaching FEVM Lakebase, so stream, Lakebase, jobs and app live here.
+bundle:
+  name: bcd_trip_intel_rtm
+
+sync:
+  paths:
+    - ../../src
+
+variables:
+  lakebase_host:
+    description: Lakebase read/write DNS for instance rohit-bcd-trip-intel
+    default: ep-spring-rice-d1tg6e60.database.us-west-2.cloud.databricks.com
+  secret_scope:
+    default: rohit-bcd-trip-intel
+  checkpoint_root:
+    default: /Volumes/users/rohit_bhagwat/trip_intel_checkpoints
+  analytics_schema:
+    default: users.rohit_bhagwat
+
+targets:
+  e2demo:
+    mode: development
+    default: true
+    workspace:
+      host: https://e2-demo-field-eng.cloud.databricks.com
+
+resources:
+  volumes:
+    trip_intel_checkpoints:
+      catalog_name: users
+      schema_name: rohit_bhagwat
+      name: trip_intel_checkpoints
+
+  sql_warehouses:
+    trip_intel_wh:
+      name: rohit-bcd-trip-intel-wh
+      cluster_size: 2X-Small
+      max_num_clusters: 1
+      auto_stop_mins: 10
+      enable_serverless_compute: true
+      warehouse_type: PRO
+
+  jobs:
+    # Real-time lane: Spark Structured Streaming Real-Time Mode on a single-node classic cluster.
+    trip_intel_rtm:
+      name: trip_intel_rtm
+      max_concurrent_runs: 1
+      tasks:
+        - task_key: rtm
+          job_cluster_key: rtm
+          spark_python_task:
+            python_file: ../../src/rtm/job.py
+            parameters:
+              - --source
+              - rate
+              - --rows-per-second
+              - "15"
+              - --lakebase-host
+              - ${var.lakebase_host}
+              - --secret-scope
+              - ${var.secret_scope}
+              - --checkpoint
+              - ${var.checkpoint_root}/rtm_v3
+          libraries:
+            - pypi:
+                package: psycopg[binary]>=3.2
+      job_clusters:
+        - job_cluster_key: rtm
+          new_cluster:
+            spark_version: 18.x-scala2.13
+            node_type_id: m5d.2xlarge
+            num_workers: 0
+            data_security_mode: SINGLE_USER
+            single_user_name: ${workspace.current_user.userName}
+            spark_conf:
+              spark.master: "local[*, 4]"
+              spark.databricks.cluster.profile: singleNode
+              spark.databricks.streaming.realTimeMode.enabled: "true"
+              spark.sql.shuffle.partitions: "2"
+              spark.sql.streaming.stateStore.providerClass: org.apache.spark.sql.execution.streaming.state.RocksDBStateStoreProvider
+            cluster_log_conf:
+              volumes:
+                destination: ${var.checkpoint_root}/cluster_logs
+            custom_tags:
+              ResourceClass: SingleNode
+
+    # Outbox dispatcher: serverless, restarted hourly; SIMULATED mode when no EventBridge bus is configured.
+    trip_intel_dispatcher:
+      name: trip_intel_dispatcher
+      max_concurrent_runs: 1
+      trigger:
+        periodic:
+          interval: 1
+          unit: HOURS
+      tasks:
+        - task_key: dispatch
+          environment_key: default
+          spark_python_task:
+            python_file: ../../src/dispatcher/dispatch.py
+            parameters: ["--lakebase-host", "${var.lakebase_host}", "--secret-scope", "${var.secret_scope}",
+                         "--run-minutes", "55"]
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "4"
+            dependencies:
+              - psycopg[binary]>=3.2
+              - boto3
+
+    # Batch/analytics lane: serverless, hourly — the "Ajay's team" consumer of the same data.
+    trip_intel_analytics:
+      name: trip_intel_analytics
+      trigger:
+        periodic:
+          interval: 1
+          unit: HOURS
+      tasks:
+        - task_key: snapshot
+          environment_key: default
+          spark_python_task:
+            python_file: ../../src/analytics/snapshot.py
+            parameters: ["--schema", "${var.analytics_schema}", "--lakebase-host", "${var.lakebase_host}",
+                         "--secret-scope", "${var.secret_scope}"]
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "4"
+            dependencies:
+              - psycopg[binary]>=3.2
+
+  apps:
+    # Ops Console, Rule Studio, Traveler view. App root is src/ so it can import trip_intel.
+    trip_intel_app:
+      name: rohit-bcd-trip-intel
+      description: BCD real-time trip intelligence demo
+      source_code_path: ../../src
+      resources:
+        - name: lakebase-password
+          secret:
+            scope: ${var.secret_scope}
+            key: lakebase-password
+            permission: READ
+        - name: llm
+          serving_endpoint:
+            name: databricks-claude-sonnet-5-5
+            permission: CAN_QUERY
+        - name: warehouse
+          sql_warehouse:
+            id: ${resources.sql_warehouses.trip_intel_wh.id}
+            permission: CAN_USE
