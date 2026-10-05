@@ -32,6 +32,24 @@ resources:
       catalog_name: users
       schema_name: rohit_bhagwat
       name: trip_intel_checkpoints
+    trip_intel_landing:
+      catalog_name: users
+      schema_name: rohit_bhagwat
+      name: trip_intel_landing
+
+  pipelines:
+    # Batch lane: Lakeflow pipeline (serverless, triggered hourly) — bronze -> silver -> gold.
+    trip_intel_batch_pipeline:
+      name: trip_intel_batch_pipeline
+      catalog: users
+      schema: rohit_bhagwat
+      serverless: true
+      root_path: ../../src
+      libraries:
+        - glob:
+            include: ../../src/batch_lane/transformations/**
+      configuration:
+        landing_path: /Volumes/users/rohit_bhagwat/trip_intel_landing/pnr_versions
 
   sql_warehouses:
     trip_intel_wh:
@@ -109,26 +127,28 @@ resources:
               - psycopg[binary]>=3.2
               - boto3
 
-    # Batch/analytics lane: serverless, hourly — the "Ajay's team" consumer of the same data.
-    trip_intel_analytics:
-      name: trip_intel_analytics
+    # Batch lane orchestration: land the next slice of versions, then refresh the Lakeflow pipeline.
+    trip_intel_batch:
+      name: trip_intel_batch
       trigger:
         periodic:
           interval: 1
           unit: HOURS
       tasks:
-        - task_key: snapshot
+        - task_key: land_versions
           environment_key: default
           spark_python_task:
-            python_file: ../../src/analytics/snapshot.py
-            parameters: ["--schema", "${var.analytics_schema}", "--lakebase-host", "${var.lakebase_host}",
-                         "--secret-scope", "${var.secret_scope}"]
+            python_file: ../../src/batch_lane/land_versions.py
+            parameters: ["--landing-path", "/Volumes/users/rohit_bhagwat/trip_intel_landing/pnr_versions"]
+        - task_key: refresh_pipeline
+          depends_on:
+            - task_key: land_versions
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.trip_intel_batch_pipeline.id}
       environments:
         - environment_key: default
           spec:
             environment_version: "4"
-            dependencies:
-              - psycopg[binary]>=3.2
 
   apps:
     # Ops Console, Rule Studio, Traveler view. App root is src/ so it can import trip_intel.

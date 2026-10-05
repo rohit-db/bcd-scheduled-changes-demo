@@ -82,7 +82,7 @@ def _fetch_batch_last_written():
     w = WorkspaceClient()
     res = w.statement_execution.execute_statement(
         warehouse_id=os.environ["WAREHOUSE_ID"], wait_timeout="50s",
-        statement=f"SELECT max(written_ts) FROM {os.environ['ANALYTICS_SCHEMA']}.change_events_hourly")
+        statement=f"SELECT max(ingested_at) FROM {os.environ['ANALYTICS_SCHEMA']}.gold_version_changes")
     value = res.result.data_array[0][0]
     return datetime.fromisoformat(value.replace("Z", "+00:00")) if value else None
 
