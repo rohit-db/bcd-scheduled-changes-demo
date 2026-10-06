@@ -12,8 +12,15 @@ const api = async (path, opts = {}) => {
   return data;
 };
 const fmtMs = (v) => (v == null ? "–" : `${Math.round(v)} ms`);
-const fmtAge = (s) => (s == null ? "–" : s < 120 ? `${Math.round(s)} s ago` : `${Math.round(s / 60)} min ago`);
+const fmtAge = (s) => (s == null ? "–" : s < 120 ? `${Math.round(s)} s ago` : s < 7200 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const human = (t) => t.charAt(0) + t.slice(1).toLowerCase().replaceAll("_", " ");
+const tagHtml = (t) => `<span class="tag ${t}" title="${t}">${human(t)}</span>`;
+const hitHtml = (h) => `<span class="hit">⚑ ${esc(h.name)}</span>`;
+const SEVERITY = [["SCHEDULE_CHANGE", "red"], ["SEAT_REMOVED", "amber"], ["SEAT_CHANGED", "amber"], ["PAYMENT_CHANGED", "teal"],
+  ["CONTACT_CHANGED", "purple"], ["SEGMENT_ADDED", "blue"], ["SEGMENT_REMOVED", "blue"], ["SEGMENT_MODIFIED", "blue"]];
+const severity = (tags) => (SEVERITY.find(([t]) => tags.includes(t)) || [null, "none"])[1];
+const ageText = (iso) => fmtAge((Date.now() - new Date(iso).getTime()) / 1000);
 
 // ---- navigation
 document.querySelectorAll("nav button").forEach((b) =>
@@ -36,6 +43,9 @@ async function refreshKpis() {
     $("#k-p95").textContent = fmtMs(k.p95_ms);
     $("#k-rtm").textContent = fmtAge(k.rtm_freshness_s);
     $("#k-batch").textContent = fmtAge(k.batch_freshness_s);
+    const live = k.rtm_freshness_s != null && k.rtm_freshness_s < 30;
+    $("#live").className = `live ${live ? "on" : "idle"}`;
+    $("#live span").textContent = live ? "Stream live" : "Stream idle";
   } catch (e) { console.error(e); }
 }
 setInterval(refreshKpis, 2000);
@@ -52,11 +62,15 @@ function addFeedItem(ev) {
   if (shownIds.has(ev.id)) return;   // reconnects replay recent events; show each once
   shownIds.add(ev.id);
   const li = document.createElement("li");
-  const shownMs = Date.now() - new Date(ev.event_ts).getTime();
-  const tags = ev.tags.map((t) => `<span class="tag ${t}">${t}</span>`).join("");
-  const hits = ev.rule_hits.map((h) => `<span class="hit">⚑ ${esc(h.name)}</span>`).join("");
-  li.innerHTML = `<b>${esc(ev.trip_id)}</b> v${ev.from_version ?? "–"}→v${ev.to_version} ${tags} ${hits}
-    <span class="muted">${shownMs} ms event→screen</span>`;
+  li.className = `sev-${severity(ev.tags)}`;
+  li.dataset.trip = ev.trip_id;
+  const detectedMs = new Date(ev.detected_ts).getTime() - new Date(ev.event_ts).getTime();
+  const fresh = Date.now() - new Date(ev.event_ts).getTime() < 60000;
+  const versions = ev.from_version == null ? `v${ev.to_version}` : `v${ev.from_version} → v${ev.to_version}`;
+  li.innerHTML = `<div><span class="trip">${esc(ev.trip_id)}</span><span class="vers">${versions}</span></div>
+    <div class="meta"><span class="lat ${fresh ? "" : "slow"}" title="event → detected">${Math.round(detectedMs)} ms</span>
+      <div>${fresh ? "just now" : ageText(ev.event_ts)}</div></div>
+    <div>${ev.tags.map(tagHtml).join("")}${ev.rule_hits.map(hitHtml).join("")}</div>`;
   li.addEventListener("click", () => loadTrip(ev.trip_id));
   $("#feed").prepend(li);
   while ($("#feed").children.length > 60) $("#feed").lastChild.remove();
@@ -65,25 +79,28 @@ new EventSource("/api/stream").onmessage = (m) => addFeedItem(JSON.parse(m.data)
 
 async function loadTrip(tripId) {
   const t = await api(`/api/trips/${encodeURIComponent(tripId)}`);
+  document.querySelectorAll("#feed li").forEach((li) => li.classList.toggle("selected", li.dataset.trip === tripId));
+  const significant = t.versions.filter((v) => !v.tags.includes("NO_SIGNIFICANT_CHANGE")).length;
   $("#trip-title").textContent = `${tripId} · ${t.latest.record_locator} · ${t.latest.traveler.name ?? ""}`;
+  $("#trip-sub").textContent = `${t.versions.length} versions, ${significant} significant`;
   $("#timeline").innerHTML = t.versions.map((v) => `
-    <div class="ver ${v.tags.includes("NO_SIGNIFICANT_CHANGE") ? "noise" : ""}">
-      <div><b>v${v.to_version}</b> ${v.tags.map((x) => `<span class="tag ${x}">${x}</span>`).join("")}
-        ${v.rule_hits.map((h) => `<span class="hit">⚑ ${esc(h.name)}</span>`).join("")}</div>
+    <div class="ver ${v.tags.includes("NO_SIGNIFICANT_CHANGE") ? "noise" : "sig"}">
+      <div><span class="vnum">v${v.to_version}</span>${v.tags.map(tagHtml).join("")}${v.rule_hits.map(hitHtml).join("")}</div>
       ${v.changes.map((c) => `<div class="chg">${describeChange(c)}</div>`).join("")}
     </div>`).join("");
 }
 
 function describeChange(c) {
   if (c.field === "*") return `${esc(c.segment)} — segment ${c.new === "added" ? "added" : "removed"}`;
-  return `${esc(c.segment ?? "")} <code>${esc(c.field)}</code>: ${esc(c.old ?? "—")} → ${esc(c.new ?? "—")}`;
+  return `${esc(c.segment ?? "")} <code>${esc(c.field)}</code> <span class="old">${esc(c.old ?? "—")}</span><span class="arrow">→</span><b>${esc(c.new ?? "—")}</b>`;
 }
 
 // ---- rule studio
 async function loadRules() {
   const rules = await api("/api/rules");
   $("#rules-table tbody").innerHTML = rules.map((r) => `
-    <tr><td title="${esc(r.nl_text)}">${esc(r.name)}</td><td>${r.status}</td><td>${r.hits}</td>
+    <tr><td><b>${esc(r.name)}</b><span class="nl" title="${esc(r.nl_text)}">${esc(r.nl_text)}</span></td>
+    <td><span class="status ${r.status}">${r.status}</span></td><td class="num">${r.hits}</td>
     <td>${r.status === "active" ? `<button data-disable="${r.rule_id}">Disable</button>` : ""}</td></tr>`).join("");
   document.querySelectorAll("[data-disable]").forEach((b) =>
     b.addEventListener("click", async () => { await api(`/api/rules/${b.dataset.disable}/disable`, { method: "POST" }); loadRules(); }));
@@ -104,7 +121,7 @@ const currentLogic = () => JSON.parse($("#logic").value);
 $("#preview").addEventListener("click", async () => {
   try {
     const p = await api("/api/rules/preview", { method: "POST", body: JSON.stringify({ json_logic: currentLogic() }) });
-    $("#preview-result").innerHTML = `Matched <b>${p.matched}</b> of ${p.evaluated} recent versions. ` +
+    $("#preview-result").innerHTML = `Would have matched <b>${p.matched}</b> of ${p.evaluated} recent versions. ` +
       p.samples.map((s) => `<span class="tag">${esc(s.trip_id)} v${s.to_version}</span>`).join(" ");
   } catch (e) { $("#preview-result").textContent = `Invalid rule: ${e.message}`; }
 });
@@ -113,7 +130,7 @@ $("#activate").addEventListener("click", async () => {
     await api("/api/rules", { method: "POST", body: JSON.stringify({
       name: $("#rule-name").value, nl_text: $("#nl").value, json_logic: currentLogic(),
       action: { type: "RULE_MATCHED", target: $("#action-target").value } }) });
-    $("#preview-result").textContent = "Active — the stream picks it up within ~5 seconds. Watch the Hits column.";
+    $("#preview-result").innerHTML = `<span class="ok">✓ Active.</span> The stream picks it up within ~5 seconds — watch the Hits column.`;
     loadRules();
   } catch (e) { $("#preview-result").textContent = `Could not activate: ${e.message}`; }
 });
@@ -125,11 +142,14 @@ async function loadCards() {
     const p = n.payload, o = p.old_flight, f = p.new_flight;
     const t = (iso) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
     return `<div class="card">
-      <div class="muted">Booking ${esc(p.record_locator)} · ${esc(p.traveler_name)}</div>
-      <h3>Your flight ${esc(o.carrier)}${esc(o.flight_number)} ${esc(o.origin)} → ${esc(o.destination)} has changed</h3>
-      <p><s>${t(o.start)}</s> → <b>${t(f.start)}</b> on ${esc(f.carrier)}${esc(f.flight_number)} (${p.delta_minutes > 0 ? "+" : ""}${p.delta_minutes} min)</p>
-      ${n.response ? `<p class="done">You chose: ${n.response}</p>` :
-        `<div class="row"><button class="primary" data-r="ACCEPT" data-id="${n.id}">Accept</button><button data-r="REBOOK" data-id="${n.id}">Rebook</button></div>`}
+      <span class="alert">Schedule change</span>
+      <div class="who">${esc(p.traveler_name)} · Booking ${esc(p.record_locator)}</div>
+      <div class="route"><span class="ap">${esc(o.origin)}</span>
+        <span class="line"><span>${esc(f.carrier)}${esc(f.flight_number)}</span></span><span class="ap">${esc(o.destination)}</span></div>
+      <div class="times"><s>${t(o.start)}</s><span>→</span><b>${t(f.start)}</b>
+        <span class="delta">${p.delta_minutes > 0 ? "+" : ""}${p.delta_minutes} min</span></div>
+      ${n.response ? `<p class="done">✓ You chose: ${n.response === "ACCEPT" ? "keep the new time" : "rebook me"}</p>` :
+        `<div class="row"><button class="primary" data-r="ACCEPT" data-id="${n.id}">Accept new time</button><button data-r="REBOOK" data-id="${n.id}">Rebook</button></div>`}
     </div>`;
   }).join("") || "<p class='muted'>No schedule changes yet.</p>";
   document.querySelectorAll("[data-r]").forEach((b) => b.addEventListener("click", async () => {

@@ -2,54 +2,95 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>BCD Trip Intelligence</title>
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
   <header>
-    <h1>BCD Trip Intelligence <span class="sub">real-time on Databricks</span></h1>
+    <div class="brand">
+      <div class="mark">BCD</div>
+      <div>
+        <h1>Trip Intelligence</h1>
+        <div class="sub">Every booking version, compared in real time · Databricks</div>
+      </div>
+    </div>
     <nav>
       <button data-view="ops" class="active">Live Ops Console</button>
       <button data-view="rules">Rule Studio</button>
       <button data-view="traveler">Traveler</button>
     </nav>
+    <div id="live" class="live idle"><i></i><span>Stream idle</span></div>
   </header>
 
   <main>
     <section id="ops" class="view active">
       <div class="kpis">
-        <div class="kpi"><label>Versions (5 min)</label><span id="k-versions">–</span></div>
-        <div class="kpi"><label>Significant</label><span id="k-significant">–</span></div>
-        <div class="kpi"><label>Event → detected p50</label><span id="k-p50">–</span></div>
-        <div class="kpi"><label>p95</label><span id="k-p95">–</span></div>
-        <div class="kpi"><label>Real-time lane freshness</label><span id="k-rtm">–</span></div>
-        <div class="kpi"><label>Hourly batch lane freshness</label><span id="k-batch">–</span></div>
+        <div class="kpi"><label>Versions received</label><span id="k-versions">–</span><small>last 5 minutes</small></div>
+        <div class="kpi"><label>Significant</label><span id="k-significant">–</span><small>the rest are re-saves</small></div>
+        <div class="kpi accent"><label>Event → detected p50</label><span id="k-p50">–</span><small>Real-Time Mode</small></div>
+        <div class="kpi accent"><label>Event → detected p95</label><span id="k-p95">–</span><small>Real-Time Mode</small></div>
+        <div class="kpi lane rt"><label>Real-time lane</label><span id="k-rtm">–</span><small>last change written</small></div>
+        <div class="kpi lane batch"><label>Hourly batch lane</label><span id="k-batch">–</span><small>last pipeline refresh</small></div>
       </div>
       <div class="split">
-        <div class="panel"><h2>Significant changes (live)</h2><ul id="feed"></ul></div>
-        <div class="panel"><h2 id="trip-title">Select a trip</h2><div id="timeline"></div></div>
+        <div class="panel">
+          <div class="panel-head"><h2>Significant changes</h2><span class="muted">noise filtered out · hover to pause</span></div>
+          <ul id="feed"></ul>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2 id="trip-title">Booking history</h2><span id="trip-sub" class="muted">click a change to see every version</span></div>
+          <div id="timeline"><div class="empty">Select a booking on the left.</div></div>
+        </div>
       </div>
     </section>
 
     <section id="rules" class="view">
-      <div class="split">
+      <div class="split rules">
         <div class="panel">
-          <h2>New rule</h2>
+          <div class="panel-head"><h2>New rule</h2><span class="muted">no code, no redeploy</span></div>
+          <div class="step"><b>1</b> Describe it in plain English</div>
           <textarea id="nl" rows="3" placeholder="e.g. If a confirmed flight moves by more than 30 minutes, alert the ops team"></textarea>
-          <button id="draft">Draft with AI</button>
+          <button id="draft">✦ Draft with AI</button>
           <p id="explanation" class="muted"></p>
+          <div class="step"><b>2</b> Review the rule (JSON Logic, the format BCD already uses)</div>
           <input id="rule-name" placeholder="Rule name" />
-          <textarea id="logic" rows="10" spellcheck="false" placeholder="JSON Logic"></textarea>
-          <input id="action-target" placeholder="Action target (e.g. seat-assignment-service)" value="ops-queue" />
+          <textarea id="logic" rows="7" spellcheck="false" placeholder="JSON Logic"></textarea>
+          <label class="field">Send matches to
+            <input id="action-target" placeholder="e.g. seat-assignment-service" value="ops-queue" />
+          </label>
+          <div class="step"><b>3</b> Test on recent versions, then go live</div>
           <div class="row"><button id="preview">Preview on recent versions</button><button id="activate" class="primary">Approve &amp; activate</button></div>
           <p id="preview-result"></p>
         </div>
-        <div class="panel"><h2>Rules</h2><table id="rules-table"><thead><tr><th>Name</th><th>Status</th><th>Hits</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div class="panel">
+          <div class="panel-head"><h2>Live rules</h2><span class="muted">hits update every few seconds</span></div>
+          <table id="rules-table"><thead><tr><th>Rule</th><th>Status</th><th class="num">Hits</th><th></th></tr></thead><tbody></tbody></table>
+        </div>
       </div>
     </section>
 
     <section id="traveler" class="view">
-      <div class="phone"><div id="cards"></div></div>
+      <div class="traveler-layout">
+        <div class="explain">
+          <h2>What the traveler sees</h2>
+          <p>When the stream detects a schedule change, it writes a notification to the outbox. This is the
+            traveler's phone a fraction of a second later.</p>
+          <p>Their answer is written back to Lakebase, ready for the agent desk or a rebooking service.</p>
+          <ol>
+            <li>Airline re-times the flight (HK → HX + new HK)</li>
+            <li>Stream pairs the old and new segment</li>
+            <li>Rule fires → outbox → push notification</li>
+            <li>Traveler accepts or asks to rebook</li>
+          </ol>
+        </div>
+        <div class="phone">
+          <div class="notch"></div>
+          <div class="statusbar"><span id="clock">9:41</span><span>●●● ▮</span></div>
+          <div class="app-head">My trips <span>BCD Travel</span></div>
+          <div id="cards"></div>
+        </div>
+      </div>
     </section>
   </main>
   <script src="/static/app.js"></script>
