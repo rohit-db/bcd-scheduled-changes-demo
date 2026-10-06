@@ -33,7 +33,7 @@
     <div class="row"><span class="what">Dispatcher<span class="c sl">serverless</span></span><span class="det">outbox → EventBridge entry (simulated)</span><span class="st ok">validated</span></div>
     <div class="row"><span class="what">Batch pipeline<span class="c sl">serverless</span></span><span class="det">bronze → silver → gold, 10,800 versions/run</span><span class="st ok">validated</span></div>
     <div class="row"><span class="what">App<span class="c sl">serverless</span></span><span class="det">Ops Console · Rule Studio · Traveler</span><span class="st ok">live</span></div>
-    <div class="row"><span class="what">Genie space</span><span class="det">BCD Trip Changes, on the gold tables</span><span class="st ok">live</span></div>
+    <div class="row"><span class="what">Genie space</span><span class="det">gold tables + stream decisions (Lakebase via Unity Catalog)</span><span class="st ok">live</span></div>
     <div class="row"><span class="what">Source</span><span class="det">synthetic PNR versions in BCD's JSON shape</span><span class="st ok">generator</span></div>
   </div>
   <div class="ws uat">
@@ -43,9 +43,9 @@
     <div class="row"><span class="what">Lakebase</span><span class="det">databricks-trip-intel · same schema</span><span class="st ok">running</span></div>
     <div class="row"><span class="what">Dispatcher<span class="c sl">serverless</span></span><span class="det">deployed, simulated mode</span><span class="st ok">deployed</span></div>
     <div class="row"><span class="what">Batch pipeline<span class="c sl">serverless</span></span><span class="det">10,800 versions, 113 schedule changes</span><span class="st ok">validated</span></div>
-    <div class="row"><span class="what">App</span><span class="det">workspace policy: Apps must deploy from Git</span><span class="st blk">blocked</span></div>
+    <div class="row"><span class="what">App</span><span class="det">deploys from private Git repo bcd-trip-intel-app (app code only)</span><span class="st todo">needs Git credential</span></div>
     <div class="row"><span class="what">Genie space</span><span class="det">not created yet</span><span class="st todo">to do</span></div>
-    <div class="row"><span class="what">Source</span><span class="det">Kinesis uat01-HermesTripsDS: read-only code path built, not yet run</span><span class="st todo">to do</span></div>
+    <div class="row"><span class="what">Source</span><span class="det">Kinesis uat01-HermesTripsDS → bronze (read-only): 12 real versions, all parsed; RTM from Kinesis not yet run</span><span class="st ok">batch: live</span></div>
   </div>
 </div>
 <div class="note">Real-Time Mode is the only classic compute: standalone RTM writing to a custom sink (Lakebase) needs a dedicated cluster.

@@ -25,6 +25,12 @@
         "question": [
           "How many versions does a trip get on average before the first significant change?"
         ]
+      },
+      {
+        "id": "10000000000000000000000000000005",
+        "question": [
+          "Which business rules fired most in the real-time stream, and how many actions did they create?"
+        ]
       }
     ]
   },
@@ -66,6 +72,46 @@
             "column_name": "tags",
             "description": [
               "Array of change tags for this version; use array_contains(tags, 'SCHEDULE_CHANGE') to filter."
+            ]
+          }
+        ]
+      },
+      {
+        "identifier": "users.rohit_bhagwat.rt_actions",
+        "column_configs": [
+          {
+            "column_name": "rule_name",
+            "description": [
+              "Rule that created this action. To count actions per rule, group rt_actions by rule_name directly; do not join to rt_rule_hits on trip_id/version (one version can fire several rules). Null = traveler notification created directly from a detected schedule change."
+            ]
+          },
+          {
+            "column_name": "status",
+            "description": [
+              "PENDING = waiting for the dispatcher; SENT = delivered to AWS EventBridge; SIMULATED = EventBridge entry built but not sent (demo workspace has no bus); FAILED = gave up after retries."
+            ]
+          },
+          {
+            "column_name": "type",
+            "description": [
+              "Action type, e.g. NOTIFY_TRAVELER, INVOKE_SERVICE, RULE_MATCHED."
+            ]
+          }
+        ]
+      },
+      {
+        "identifier": "users.rohit_bhagwat.rt_rule_hits",
+        "column_configs": [
+          {
+            "column_name": "matched_ts",
+            "description": [
+              "When the real-time stream evaluated the rule as matched."
+            ]
+          },
+          {
+            "column_name": "rule_name",
+            "description": [
+              "Business rule that fired, live in the real-time stream (Lakebase, ~0.2 s after the booking version arrived)."
             ]
           }
         ]

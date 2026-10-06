@@ -68,7 +68,7 @@
 <div class="box" style="left:1130px;top:575px;width:170px;height:120px;border-color:#1f8a4c">
   <b>Genie</b><div class="s">analysts ask in English:<br>"what share was noise?"</div></div>
 <div class="abs" style="left:320px;top:715px;width:980px;font-size:12.5px;color:#9a4d0b">
-  ⟲ Gold runs the <b>same trip_intel diff library</b> as the real-time stream, so both lanes agree on what changed.</div>
+  ⟲ Gold runs the <b>same trip_intel diff library</b> as the real-time stream. Bronze has one append flow per source (landed files, Kinesis), tagged by <code>source</code>.</div>
 
 <div class="uc" style="left:300px;top:790px;width:1020px;height:80px">
   <b>Unity Catalog</b>tables · volumes · Lakebase · service credentials for Kinesis and EventBridge · lineage · access control
@@ -109,11 +109,13 @@
     <path d="M677 635 L 708 635" marker-end="url(#a)"/>
     <path d="M882 635 L 913 635" marker-end="url(#a)"/>
     <path d="M1097 635 L 1128 635" marker-end="url(#a)"/>
+    <path d="M800 467 L 800 503 L 1215 503 L 1215 573" stroke="#2272b4" stroke-dasharray="6 4" marker-end="url(#a)"/>
   </g>
   <text class="lbl" x="236" y="318">every version</text>
   <text class="lbl" x="246" y="520">same feed</text>
   <text class="lbl" x="537" y="262">writes</text>
   <text class="lbl" x="452" y="412">rules hot-reload ≤5 s</text>
   <text class="lbl" x="1190" y="420">PutEvents · UC credential</text>
+  <text class="lbl" x="860" y="499" style="fill:#164a78">stream decisions, queryable via Unity Catalog</text>
 </svg>
 </body></html>

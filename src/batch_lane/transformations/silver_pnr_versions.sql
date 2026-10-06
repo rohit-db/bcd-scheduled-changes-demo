@@ -14,7 +14,7 @@ AS WITH parsed AS (
       startDateTime: STRING, endDateTime: STRING, seat: STRUCT<number: STRING>, hotelName: STRING>>,
     travelers: ARRAY<STRUCT<name: STRING, email: STRING, phone: STRING>>,
     payment: STRUCT<type: STRING, last4: STRING>, remarks: STRING>') AS p,
-    payload, landed_at, ingested_at
+    payload, source, landed_at, ingested_at
   FROM STREAM(bronze_pnr_versions)
 )
 SELECT
@@ -25,6 +25,7 @@ SELECT
   p.travelers[0] AS traveler,
   p.payment,
   payload,
+  source,
   landed_at,
   ingested_at
 FROM parsed;

@@ -23,6 +23,14 @@ variables:
     default: /Volumes/${var.catalog}/${var.schema}/trip_intel_checkpoints
   landing_path:
     default: /Volumes/${var.catalog}/${var.schema}/trip_intel_landing/pnr_versions
+  kinesis_stream:
+    description: Kinesis stream the bronze table also reads; empty = landed files only
+    default: ""
+  kinesis_region:
+    default: us-east-1
+  kinesis_credential:
+    description: UC service credential for Kinesis (read-only)
+    default: kinesis_reader_cred_uat
 
 targets:
   e2demo:
@@ -38,6 +46,13 @@ targets:
       app_name: rohit-bcd-trip-intel
     # BCD UAT requires Apps to be deployed from a Git repository, so the app is defined per target.
     resources:
+      # The stream's decisions (change_events, rule_hits, action_outbox, ...) live in Lakebase; registering the
+      # database in Unity Catalog makes them queryable from SQL and Genie next to the gold tables.
+      database_catalogs:
+        trip_intel_ops:
+          name: rohit_bcd_trip_intel_ops
+          database_instance_name: rohit-bcd-trip-intel
+          database_name: databricks_postgres
       apps:
         # Ops Console, Rule Studio, Traveler view. App root is src/ so it can import trip_intel.
         trip_intel_app:
@@ -80,6 +95,7 @@ targets:
       lakebase_host: ep-bitter-fog-d2w6wju5.database.us-east-1.cloud.databricks.com
       secret_scope: databricks-trip-intel
       app_name: databricks-bcd-trip-intel
+      kinesis_stream: uat01-HermesTripsDS   # bronze also reads BCD's real feed (read-only)
 
 resources:
   volumes:
@@ -105,6 +121,9 @@ resources:
             include: ../../src/batch_lane/transformations/**
       configuration:
         landing_path: ${var.landing_path}
+        kinesis_stream: ${var.kinesis_stream}
+        kinesis_region: ${var.kinesis_region}
+        kinesis_credential: ${var.kinesis_credential}
 
   sql_warehouses:
     trip_intel_wh:

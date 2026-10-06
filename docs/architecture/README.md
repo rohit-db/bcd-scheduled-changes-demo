@@ -23,6 +23,8 @@ single classic node. It compares each booking version to the previous one, tags 
 writes results to Lakebase in about 0.2 s. The app, the dispatcher (outbox → EventBridge) and analysts' rules all
 work against Lakebase. The **batch lane** is a serverless Lakeflow pipeline (bronze → silver → gold) that runs hourly
 and serves Genie. Gold calls the same `trip_intel` diff library as the stream.
+Lakebase is registered in Unity Catalog, so Genie and SQL can query the stream's decisions (rule hits, actions)
+next to gold, through the views in `sql/uc_realtime_views.sql`.
 
 ## 2. One booking version, event → screen
 ![Real-time sequence](svg/02_realtime_sequence.svg)
@@ -55,8 +57,9 @@ workspace the dispatcher runs in SIMULATED mode: it builds and stores the exact 
 ## 8. Target state: ingest once, many consumers
 ![Target state](svg/08_target_state.svg)
 
-Real-Time Mode reads the source directly (it can't read Delta), and a streaming table lands every raw version in
-bronze once. Batch consumers (finance, profiles, EPAM's pipelines, Genie) read bronze instead of each re-reading
+Separate compute per latency tier; shared data and logic. Real-Time Mode reads the source directly (it can't read
+Delta), and a streaming table lands every raw version in bronze once. In UAT the bronze table already does this: an
+append flow reads `uat01-HermesTripsDS` read-only, alongside the synthetic landed files. Batch consumers (finance, profiles, EPAM's pipelines, Genie) read bronze instead of each re-reading
 Kinesis.
 
 ## 9. Lakebase data model
