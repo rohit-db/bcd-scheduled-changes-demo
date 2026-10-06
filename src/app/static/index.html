@@ -30,8 +30,8 @@
         <div class="kpi"><label>Significant</label><span id="k-significant">–</span><small>the rest are re-saves</small></div>
         <div class="kpi accent"><label>Event → detected p50</label><span id="k-p50">–</span><small>Real-Time Mode</small></div>
         <div class="kpi accent"><label>Event → detected p95</label><span id="k-p95">–</span><small>Real-Time Mode</small></div>
-        <div class="kpi lane rt"><label>Real-time lane</label><span id="k-rtm">–</span><small>last change written</small></div>
-        <div class="kpi lane batch"><label>Hourly batch lane</label><span id="k-batch">–</span><small>last pipeline refresh</small></div>
+        <div class="kpi lane rt" title="Same feed and same change logic as the analytical tier; tuned for milliseconds"><label>Operational tier · real-time</label><span id="k-rtm">–</span><small>ops, travelers, services</small></div>
+        <div class="kpi lane batch" title="Same feed and same change logic as the operational tier; refreshed on a schedule"><label>Analytical tier · hourly</label><span id="k-batch">–</span><small>reporting, Genie, finance</small></div>
       </div>
       <div class="split">
         <div class="panel">
