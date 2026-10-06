@@ -1,0 +1,53 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; }
+  body { width: 1400px; font: 14px/1.4 Inter, -apple-system, "Segoe UI", Roboto, sans-serif; color: #11171c; background: #fff; padding: 28px 30px 30px; }
+  h1 { font-size: 24px; letter-spacing: -.3px; } .lede { color: #5f7281; margin: 4px 0 20px; }
+  .bundle { display: flex; align-items: center; gap: 14px; background: #0b2026; color: #fff; border-radius: 12px; padding: 14px 18px; }
+  .bundle b { color: #ff7a66; } .bundle code { font: 13px ui-monospace, Menlo, monospace; color: #d7e6ee; }
+  .forks { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 18px; position: relative; }
+  .ws { border: 1.5px solid #c9d3dd; border-radius: 14px; padding: 16px; background: #f6f8fb; }
+  .ws.uat { border-color: #ffb547; background: #fffaf2; }
+  .ws h2 { font-size: 17px; } .ws .meta { color: #5f7281; font-size: 12.5px; margin: 2px 0 12px; }
+  .ws .target { float: right; font: 12px ui-monospace, Menlo, monospace; background: #0b2026; color: #fff; padding: 3px 8px; border-radius: 6px; }
+  .row { display: grid; grid-template-columns: 170px 1fr 120px; align-items: center; gap: 10px; background: #fff; border: 1px solid #e6eaef;
+    border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .row .what { font-weight: 700; } .row .det { color: #46576a; font-size: 12.5px; }
+  .st { justify-self: end; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .ok { background: #e6f5ec; color: #1f8a4c; } .off { background: #eef1f5; color: #46576a; }
+  .blk { background: #fde7eb; color: #d6304f; } .todo { background: #fdefe3; color: #c2610f; }
+  .c { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-left: 6px; vertical-align: 1px; }
+  .classic { background: #ffe9e5; color: #c22a17; } .sl { background: #e6f5ec; color: #1f8a4c; }
+  .note { margin-top: 16px; font-size: 12.5px; color: #46576a; border-left: 3px solid #ffb547; padding-left: 10px; }
+</style></head><body>
+<h1>Where it runs: one bundle, two workspaces</h1>
+<div class="lede">The same Databricks Asset Bundle deploys to the demo workspace and to BCD's UAT workspace. Only variables change (catalog, schema, Lakebase, secret scope).</div>
+<div class="bundle"><b>DAB</b><code>bundles/trip_intel</code><span style="color:#a9bcc6">→</span>
+  <code>databricks bundle deploy -t e2demo</code><span style="color:#a9bcc6">|</span><code>databricks bundle deploy -t uat</code></div>
+<div class="forks">
+  <div class="ws">
+    <span class="target">-t e2demo</span><h2>Demo workspace</h2>
+    <div class="meta">e2-demo-field-eng · AWS us-west-2 · schema <code>users.rohit_bhagwat</code></div>
+    <div class="row"><span class="what">RTM stream<span class="c classic">classic</span></span><span class="det">1× m5d.2xlarge on-demand · tested at 15/s and 100/s</span><span class="st off">stopped</span></div>
+    <div class="row"><span class="what">Lakebase</span><span class="det">rohit-bcd-trip-intel · 6 operational tables</span><span class="st ok">running</span></div>
+    <div class="row"><span class="what">Dispatcher<span class="c sl">serverless</span></span><span class="det">outbox → EventBridge entry (simulated)</span><span class="st ok">validated</span></div>
+    <div class="row"><span class="what">Batch pipeline<span class="c sl">serverless</span></span><span class="det">bronze → silver → gold, 10,800 versions/run</span><span class="st ok">validated</span></div>
+    <div class="row"><span class="what">App<span class="c sl">serverless</span></span><span class="det">Ops Console · Rule Studio · Traveler</span><span class="st ok">live</span></div>
+    <div class="row"><span class="what">Genie space</span><span class="det">BCD Trip Changes, on the gold tables</span><span class="st ok">live</span></div>
+    <div class="row"><span class="what">Source</span><span class="det">synthetic PNR versions in BCD's JSON shape</span><span class="st ok">generator</span></div>
+  </div>
+  <div class="ws uat">
+    <span class="target">-t uat</span><h2>BCD UAT workspace</h2>
+    <div class="meta">bcd-api-uat · AWS us-east-1 · schema <code>bcd_api_uat.databricks_demo</code> (separate from EPAM's tables)</div>
+    <div class="row"><span class="what">RTM stream<span class="c classic">classic</span></span><span class="det">validated: p50 186 ms · p95 228 ms at 15/s</span><span class="st off">stopped</span></div>
+    <div class="row"><span class="what">Lakebase</span><span class="det">databricks-trip-intel · same schema</span><span class="st ok">running</span></div>
+    <div class="row"><span class="what">Dispatcher<span class="c sl">serverless</span></span><span class="det">deployed, simulated mode</span><span class="st ok">deployed</span></div>
+    <div class="row"><span class="what">Batch pipeline<span class="c sl">serverless</span></span><span class="det">10,800 versions, 113 schedule changes</span><span class="st ok">validated</span></div>
+    <div class="row"><span class="what">App</span><span class="det">workspace policy: Apps must deploy from Git</span><span class="st blk">blocked</span></div>
+    <div class="row"><span class="what">Genie space</span><span class="det">not created yet</span><span class="st todo">to do</span></div>
+    <div class="row"><span class="what">Source</span><span class="det">Kinesis uat01-HermesTripsDS: read-only code path built, not yet run</span><span class="st todo">to do</span></div>
+  </div>
+</div>
+<div class="note">Real-Time Mode is the only classic compute: standalone RTM writing to a custom sink (Lakebase) needs a dedicated cluster.
+Everything else is serverless and pay-per-use.</div>
+</body></html>

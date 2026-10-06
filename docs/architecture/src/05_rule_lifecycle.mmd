@@ -1,0 +1,23 @@
+sequenceDiagram
+  autonumber
+  participant An as Business analyst
+  participant UI as Rule Studio (App)
+  participant LLM as Foundation Model API
+  participant L as Lakebase
+  participant S as Real-Time Mode stream
+
+  An->>UI: "If a confirmed flight has no seat,<br/>call the seat-assignment service"
+  UI->>LLM: system prompt + allowed fields/operators
+  LLM-->>UI: name + JSON Logic + explanation
+  UI->>UI: validate() — only known operators
+  An->>UI: Preview
+  UI->>L: last N change_events
+  UI-->>An: "would have matched N of the recent versions" + samples
+  An->>UI: Approve & activate
+  UI->>L: INSERT rules (status = active)
+  Note over S: RuleCache TTL 5 s
+  S->>L: reload active rules
+  S->>S: evaluate on every new version
+  S->>L: rule_hits + action_outbox
+  UI-->>An: hits counter climbs (measured 4.5 s after approval)
+  Note over An,S: no code, no deploy, no stream restart

@@ -13,6 +13,8 @@ live.
 
 ## The pieces, in the order data flows
 
+Diagrams (overview, sequences, pipeline, deployment, target state): [`docs/architecture/`](architecture/README.md).
+
 ```
  Booking versions ──► 1. Real-time stream ──► 2. Operational database ──► 4. Web app (3 screens)
  (fake, in BCD's        compare to previous      (Lakebase = Postgres)        Ops · Rules · Traveler

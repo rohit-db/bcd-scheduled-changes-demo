@@ -1,0 +1,33 @@
+flowchart LR
+  classDef aws fill:#fff4e5,stroke:#ff9900,color:#232f3e
+  classDef rt fill:#ffe9e5,stroke:#ff3621,color:#11171c
+  classDef bronze fill:#f3e3d3,stroke:#8c5a2b,color:#11171c
+  classDef cons fill:#eef1f5,stroke:#66768a,color:#11171c
+  classDef store fill:#e8f1fa,stroke:#2272b4,color:#11171c
+
+  K[("Kinesis<br/>HermesTripsDS")]:::aws
+
+  subgraph ING["Ingest once"]
+    RTM["Real-Time Mode stream<br/>always on · ms"]:::rt
+    BZ["bronze_pnr_versions<br/>Delta · every raw version<br/>replayable, auditable"]:::bronze
+  end
+
+  subgraph MS["Real-time consumers"]
+    LB[("Lakebase<br/>ops state · rules · outbox")]:::store
+    EB["EventBridge → Lambdas,<br/>notifications, seat service"]:::aws
+  end
+
+  subgraph BATCH["Batch consumers"]
+    C1["Finance: payment changes"]:::cons
+    C2["Profiles: contact changes"]:::cons
+    C3["EPAM pipelines / reporting"]:::cons
+    C4["Genie · dashboards · ML"]:::cons
+  end
+
+  K --> RTM
+  K -->|"streaming table"| BZ
+  RTM --> LB --> EB
+  BZ --> C1
+  BZ --> C2
+  BZ --> C3
+  BZ --> C4

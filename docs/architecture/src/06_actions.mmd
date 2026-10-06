@@ -1,0 +1,20 @@
+sequenceDiagram
+  autonumber
+  participant S as Real-Time Mode stream
+  participant O as Lakebase<br/>action_outbox
+  participant D as Dispatcher<br/>(serverless, polls 0.5 s)
+  participant E as AWS EventBridge
+  participant T as Traveler view (App)
+  participant P as Traveler
+
+  S->>O: INSERT action (id = sha256, status PENDING)<br/>ON CONFLICT DO NOTHING → no duplicates on replay
+  loop every 0.5 s
+    D->>O: claim PENDING rows
+    D->>E: PutEvents(Source=bcd.trip-intel, DetailType, Detail)<br/>via UC service credential
+    E-->>D: EventId
+    D->>O: status SENT + eventbridge_entry<br/>(demo: SIMULATED — entry built, not sent)
+  end
+  T->>O: schedule-change notifications
+  T-->>P: "UA401 moved 07:00 → 07:45"
+  P->>T: Accept / Rebook
+  T->>O: INSERT traveler_responses

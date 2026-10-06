@@ -1,0 +1,25 @@
+sequenceDiagram
+  autonumber
+  participant K as Kinesis<br/>(demo: rate generator)
+  participant S as Real-Time Mode stream<br/>transformWithState
+  participant ST as RocksDB state<br/>(previous version per trip)
+  participant R as Rule cache<br/>(5 s TTL)
+  participant L as Lakebase
+  participant A as App (SSE)
+  participant B as Browser
+
+  K->>S: PNR version N of trip T
+  S->>ST: get snapshot of version N-1
+  ST-->>S: previous snapshot (or none → NEW_TRIP)
+  Note over S: diff N-1 vs N → tags<br/>(SCHEDULE_CHANGE, SEAT_REMOVED, …,<br/>or NO_SIGNIFICANT_CHANGE ~85%)
+  S->>R: active rules
+  R-->>S: JSON Logic rules (reloaded from Lakebase)
+  Note over S: evaluate rules · build actions<br/>(deterministic id = sha256)
+  S->>ST: store version N
+  Note over K,S: event → detected<br/>p50 73 ms · p95 109 ms @ 100/s
+  S->>L: one pipelined round trip:<br/>trip_latest, change_events, rule_hits, action_outbox
+  Note over S,L: event → in Lakebase p50 ≈ 0.2–0.3 s
+  loop every ~0.5 s, one poll shared by all tabs
+    A->>L: new significant change_events since last id
+  end
+  A-->>B: Server-Sent Event → live feed

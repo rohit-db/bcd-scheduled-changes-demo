@@ -1,0 +1,19 @@
+flowchart TB
+  classDef step fill:#ffffff,stroke:#143642,color:#11171c
+  classDef dec fill:#fff6e0,stroke:#c2610f,color:#11171c
+  classDef out fill:#e8f1fa,stroke:#2272b4,color:#11171c
+  classDef noise fill:#f1f2f4,stroke:#8b97a5,color:#66768a
+
+  IN["Raw record<br/>(Kinesis data bytes)"]:::step --> P["parse() + to_snapshot()<br/>flatten nested PNR JSON"]:::step
+  P --> BAD{"parse error?"}:::dec
+  BAD -->|yes| SKIP["log BAD_RECORD, skip<br/>stream keeps running"]:::noise
+  BAD -->|no| KEY["keyed by trip_id<br/>transformWithState"]:::step
+  KEY --> PREV{"version ≤ stored?"}:::dec
+  PREV -->|yes| STALE["tag STALE_VERSION<br/>no state change, no actions"]:::noise
+  PREV -->|no| DIFF["diff(prev, new)<br/>segments · seats · contact · payment"]:::step
+  DIFF --> SC["schedule_change.detect()<br/>HX/UN segment ↔ new HK/KK/TK<br/>same O&D, same day, ≤60 min"]:::step
+  SC --> RULES["rules.newly_matched()<br/>trip.* rules: edge-triggered (fire once)<br/>change.* rules: fire on each matching version"]:::step
+  RULES --> ACT["outbox.build_actions()<br/>id = sha256(trip, version, rule)"]:::step
+  ACT --> SAVE["state ← snapshot N"]:::step
+  SAVE --> EMIT["output row:<br/>snapshot · change · rule hits · actions"]:::out
+  EMIT --> SINK["ForeachWriter → Lakebase<br/>INSERT … ON CONFLICT DO NOTHING / forward-only upsert<br/>safe to replay after restart"]:::out

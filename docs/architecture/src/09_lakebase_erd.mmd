@@ -1,0 +1,40 @@
+erDiagram
+  trip_latest ||--o{ change_events : "trip_id"
+  change_events ||--o{ rule_hits : "trip_id, version"
+  rules ||--o{ rule_hits : "rule_id"
+  change_events ||--o{ action_outbox : "trip_id, version"
+  action_outbox ||--o| traveler_responses : "outbox_id"
+
+  trip_latest { text trip_id PK
+    int version
+    jsonb snapshot
+    timestamptz updated_ts }
+  change_events { bigserial id PK
+    text trip_id
+    int from_version
+    int to_version "UNIQUE with trip_id"
+    text_array tags
+    jsonb changes
+    timestamptz event_ts
+    timestamptz detected_ts
+    timestamptz written_ts }
+  rules { text rule_id PK
+    text name
+    text nl_text
+    jsonb json_logic
+    jsonb action
+    text status "draft | active | disabled" }
+  rule_hits { bigserial id PK
+    text rule_id
+    text trip_id
+    int version
+    timestamptz matched_ts }
+  action_outbox { text id PK "sha256"
+    text type
+    text target
+    jsonb payload
+    text status "PENDING | SENT | SIMULATED | FAILED"
+    jsonb eventbridge_entry }
+  traveler_responses { text outbox_id PK
+    text response "ACCEPT | REBOOK"
+    timestamptz response_ts }

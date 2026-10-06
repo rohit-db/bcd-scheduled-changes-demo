@@ -1,0 +1,119 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; }
+  body { width: 1600px; height: 940px; font: 14px/1.35 Inter, -apple-system, "Segoe UI", Roboto, sans-serif; color: #11171c; background: #fff; position: relative; }
+  .abs { position: absolute; }
+  h1 { position: absolute; left: 30px; top: 22px; font-size: 26px; letter-spacing: -.4px; }
+  .lede { position: absolute; left: 30px; top: 60px; color: #5f7281; font-size: 15px; }
+  .panel { position: absolute; border-radius: 16px; }
+  .panel > .t { position: absolute; left: 16px; top: 10px; font-size: 12px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
+  .aws { background: #fff8ee; border: 1.5px solid #ffb547; } .aws > .t { color: #b26b00; }
+  .dbx { background: #f6f8fb; border: 1.5px solid #c9d3dd; } .dbx > .t { color: #143642; }
+  .band { position: absolute; border-radius: 12px; border: 1.5px dashed; }
+  .band > .t { position: absolute; left: 14px; top: 8px; font-size: 13px; font-weight: 700; }
+  .band > .t span { font-weight: 500; color: #5f7281; margin-left: 6px; }
+  .rt { background: #fff3f1; border-color: #ff9c8f; } .rt > .t { color: #c22a17; }
+  .bt { background: #fffaf0; border-color: #e8b36b; } .bt > .t { color: #9a4d0b; }
+  .box { position: absolute; background: #fff; border: 1.5px solid #143642; border-radius: 10px; padding: 10px 12px; box-shadow: 0 2px 6px rgba(16,24,40,.06); }
+  .box b { display: block; font-size: 15px; margin-bottom: 2px; }
+  .box .s { color: #46576a; font-size: 12.5px; }
+  .chip { display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #0b2026; color: #fff; }
+  .chip.red { background: #ff3621; } .chip.green { background: #1f8a4c; } .chip.blue { background: #2272b4; } .chip.amber { background: #c2610f; } .chip.aws { background: #232f3e; }
+  .tbl { display: block; font: 12px ui-monospace, Menlo, monospace; background: #e8f1fa; color: #164a78; border-radius: 6px; padding: 4px 8px; margin-top: 4px; }
+  .uc { position: absolute; border-radius: 10px; background: #0b2026; color: #fff; padding: 14px 18px; font-size: 13px; }
+  .uc b { color: #ff7a66; margin-right: 8px; }
+  .medal { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+  .facts { position: absolute; background: #fff; border: 1.5px solid #e6eaef; border-radius: 14px; padding: 14px 16px; }
+  .facts h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: #5f7281; margin-bottom: 8px; }
+  .facts div { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #f0f2f5; font-size: 13px; }
+  .facts div span:last-child { font-weight: 700; }
+  svg { position: absolute; left: 0; top: 0; overflow: visible; }
+  .lbl { font-size: 12px; fill: #33404d; font-weight: 600; stroke: #fff; stroke-width: 5px; paint-order: stroke; stroke-linejoin: round; }
+</style></head><body>
+<h1>BCD Trip Intelligence: reference architecture</h1>
+<div class="lede">One booking feed, two lanes: milliseconds for operations, hourly for analytics. Same change-detection code in both.</div>
+
+<!-- left: BCD AWS source -->
+<div class="panel aws" style="left:30px;top:110px;width:210px;height:780px"><div class="t">BCD AWS</div></div>
+<div class="box" style="left:50px;top:320px;width:170px;height:130px;border-color:#ff9900">
+  <b>Kinesis</b><div class="s">HermesTripsDS<br>every PNR version<br>15/s normal · 100/s peak</div><span class="chip aws">AWS</span></div>
+
+<!-- Databricks workspace -->
+<div class="panel dbx" style="left:280px;top:110px;width:1060px;height:780px"><div class="t">Databricks workspace</div></div>
+
+<div class="band rt" style="left:300px;top:145px;width:1020px;height:345px"><div class="t">Real-time lane <span>always on · ~0.2 s event → Lakebase</span></div></div>
+<div class="box" style="left:320px;top:200px;width:210px;height:170px;border-color:#ff3621">
+  <b>Real-Time Mode stream</b><div class="s">Structured Streaming<br>transformWithState: compare each version to the previous one · tag · rules · actions</div>
+  <span class="chip red">1 classic node</span></div>
+<div class="box" style="left:600px;top:185px;width:240px;height:280px;border-color:#2272b4">
+  <b>Lakebase</b><div class="s">managed Postgres, millisecond reads</div>
+  <span class="tbl">trip_latest</span><span class="tbl">change_events</span><span class="tbl">rule_hits</span>
+  <span class="tbl">rules</span><span class="tbl">action_outbox</span><span class="tbl">traveler_responses</span></div>
+<div class="box" style="left:905px;top:195px;width:200px;height:165px;border-color:#1f8a4c">
+  <b>Databricks App</b><div class="s">Live Ops Console<br>Rule Studio<br>Traveler view</div><span class="chip green">serverless</span></div>
+<div class="box" style="left:1150px;top:205px;width:150px;height:120px;border-color:#1f8a4c">
+  <b>Foundation Model API</b><div class="s">Claude: English → JSON Logic</div></div>
+<div class="box" style="left:905px;top:395px;width:200px;height:75px;border-color:#ff3621">
+  <b>Dispatcher</b><div class="s">drains outbox every 0.5 s</div></div>
+
+<div class="band bt" style="left:300px;top:515px;width:1020px;height:255px"><div class="t">Batch lane <span>hourly · serverless · Lakeflow Declarative Pipeline</span></div></div>
+<div class="box" style="left:320px;top:575px;width:150px;height:120px;border-color:#c2610f">
+  <b>Landing volume</b><div class="s">raw JSON files<br>Unity Catalog volume</div></div>
+<div class="box" style="left:505px;top:575px;width:170px;height:120px;border-color:#8c5a2b">
+  <b><span class="medal" style="background:#b87333"></span>Bronze</b><div class="s">every raw version kept<br>Auto Loader</div></div>
+<div class="box" style="left:710px;top:575px;width:170px;height:120px;border-color:#66768a">
+  <b><span class="medal" style="background:#a8b2bd"></span>Silver</b><div class="s">parsed + flattened segments<br>data-quality expectations</div></div>
+<div class="box" style="left:915px;top:575px;width:180px;height:120px;border-color:#b8860b">
+  <b><span class="medal" style="background:#e0b100"></span>Gold</b><div class="s">every version vs previous<br>daily change summary</div></div>
+<div class="box" style="left:1130px;top:575px;width:170px;height:120px;border-color:#1f8a4c">
+  <b>Genie</b><div class="s">analysts ask in English:<br>"what share was noise?"</div></div>
+<div class="abs" style="left:320px;top:715px;width:980px;font-size:12.5px;color:#9a4d0b">
+  ⟲ Gold runs the <b>same trip_intel diff library</b> as the real-time stream, so both lanes agree on what changed.</div>
+
+<div class="uc" style="left:300px;top:790px;width:1020px;height:80px">
+  <b>Unity Catalog</b>tables · volumes · Lakebase · service credentials for Kinesis and EventBridge · lineage · access control
+  <div style="color:#a9bcc6;margin-top:6px;font-size:12px">Deployed as one Databricks Asset Bundle: same code to the demo workspace and BCD UAT</div></div>
+
+<!-- right: BCD AWS targets -->
+<div class="panel aws" style="left:1370px;top:330px;width:200px;height:250px"><div class="t">BCD AWS</div></div>
+<div class="box" style="left:1390px;top:385px;width:160px;height:75px;border-color:#ff9900"><b>EventBridge</b><div class="s">PutEvents</div></div>
+<div class="box" style="left:1390px;top:495px;width:160px;height:70px;border-color:#ff9900"><b>Lambdas · APIs</b><div class="s">seat, notify, rebook</div></div>
+
+<div class="facts" style="left:1370px;top:610px;width:200px;height:280px">
+  <h3>Measured</h3>
+  <div><span>Peak rate</span><span>100/s</span></div>
+  <div><span>Detect p50</span><span>73 ms</span></div>
+  <div><span>Detect p95</span><span>109 ms</span></div>
+  <div><span>In Lakebase p50</span><span>~0.2 s</span></div>
+  <div><span>New rule live</span><span>~5 s</span></div>
+  <div><span>Noise filtered</span><span>~85%</span></div>
+  <div style="border:0"><span>RTM compute</span><span>1 node</span></div>
+</div>
+
+<svg width="1600" height="940">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#33404d"/></marker>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ff3621"/></marker>
+  </defs>
+  <g fill="none" stroke="#33404d" stroke-width="2">
+    <path d="M220 360 C 270 360, 270 285, 318 285" stroke="#ff3621" stroke-width="2.5" marker-end="url(#ar)"/>
+    <path d="M220 410 C 270 410, 270 635, 318 635" marker-end="url(#a)"/>
+    <path d="M530 270 L 598 270" stroke="#ff3621" stroke-width="2.5" marker-end="url(#ar)"/>
+    <path d="M598 420 L 440 420 L 440 372" stroke-dasharray="6 4" marker-end="url(#a)"/>
+    <path d="M842 260 L 903 260" marker-start="url(#a)" marker-end="url(#a)"/>
+    <path d="M1107 265 L 1148 265" marker-start="url(#a)" marker-end="url(#a)"/>
+    <path d="M842 432 L 903 432" marker-end="url(#a)"/>
+    <path d="M1107 432 L 1388 422" marker-end="url(#a)"/>
+    <path d="M1470 462 L 1470 493" marker-end="url(#a)"/>
+    <path d="M472 635 L 503 635" marker-end="url(#a)"/>
+    <path d="M677 635 L 708 635" marker-end="url(#a)"/>
+    <path d="M882 635 L 913 635" marker-end="url(#a)"/>
+    <path d="M1097 635 L 1128 635" marker-end="url(#a)"/>
+  </g>
+  <text class="lbl" x="236" y="318">every version</text>
+  <text class="lbl" x="246" y="520">same feed</text>
+  <text class="lbl" x="537" y="262">writes</text>
+  <text class="lbl" x="452" y="412">rules hot-reload ≤5 s</text>
+  <text class="lbl" x="1190" y="420">PutEvents · UC credential</text>
+</svg>
+</body></html>
