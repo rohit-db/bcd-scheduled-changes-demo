@@ -5,3 +5,6 @@ __pycache__/
 dist/
 build/
 .DS_Store
+.superpowers/
+docs/video/_demowork/
+docs/video/*.mp4

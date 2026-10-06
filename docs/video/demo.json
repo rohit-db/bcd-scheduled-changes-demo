@@ -1,0 +1,88 @@
+{
+  "url": "http://localhost:8765/",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "voice": "am_michael",
+  "steps": [
+    {
+      "say": "This is the B C D Trip Intelligence app, running on Databricks. Every new version of a booking flows through it in real time.",
+      "waitfor": "#feed li"
+    },
+    {
+      "say": "Across the top: in the last five minutes, thousands of booking versions arrived, but only about fifteen percent changed anything that matters. The rest are routine re-saves from the booking systems."
+    },
+    {
+      "say": "Each version is compared to the one before it and classified in well under a hundred milliseconds, from event to decision, at B C D's peak rate of one hundred versions a second."
+    },
+    {
+      "say": "On the right, the hourly batch lane is minutes behind. Same data, two consumers, each at the latency it actually needs."
+    },
+    {
+      "say": "Below is the live feed of significant changes, tagged with what changed and which business rules fired. I'll open a schedule change.",
+      "hover": "#feed li:has(.tag.SCHEDULE_CHANGE) >> nth=0",
+      "click": "#feed li:has(.tag.SCHEDULE_CHANGE) >> nth=0"
+    },
+    {
+      "say": "Here is that one booking's full history. Version one created the trip. The next versions were noise, so they're greyed out.",
+      "waitfor": "#timeline .ver"
+    },
+    {
+      "say": "Then the airline cancelled the flight and moved the traveler to a new one forty five minutes later. That's the schedule change, and both rules fired on it."
+    },
+    {
+      "say": "Every version is compared to the one before it. None are skipped. This is the track changes service that runs in Lambda today, as one step in the stream."
+    },
+    {
+      "say": "Now the rules engine. An analyst types a rule in plain English.",
+      "click": "button[data-view=rules]"
+    },
+    {
+      "say": "If a traveler's email address changes, notify the profile sync service.",
+      "type": [
+        "#nl",
+        "If a traveler's email address changes, notify the profile sync service"
+      ]
+    },
+    {
+      "say": "The A.I. turns it into a Jason Logic rule, the same rule format B C D already uses, with a plain English explanation of what it does.",
+      "click": "#draft",
+      "eval": "(async () => { for (let i = 0; i < 80 && !document.querySelector('#logic').value; i++) await new Promise(r => setTimeout(r, 500)); })()"
+    },
+    {
+      "say": "Before switching it on, we preview it against the last thousand booking versions, to see exactly what it would have matched.",
+      "fill": [
+        "#action-target",
+        "profile-sync-service"
+      ],
+      "click": "#preview",
+      "eval": "(async () => { for (let i = 0; i < 40 && !document.querySelector('#preview-result').textContent; i++) await new Promise(r => setTimeout(r, 300)); })()"
+    },
+    {
+      "say": "Approve, and it's live. No code and no deployment. The stream picks up the new rule within seconds.",
+      "click": "#activate",
+      "wait": 2000
+    },
+    {
+      "say": "And the hits counter for the new rule is already climbing.",
+      "wait": 6000
+    },
+    {
+      "click": "button[data-view=traveler]",
+      "wait": 1500
+    },
+    {
+      "say": "Finally, the traveler. When the airline changes a flight, the same event becomes a notification on their phone. Your flight moved. Accept, or rebook.",
+      "waitfor": ".card"
+    },
+    {
+      "say": "The traveler accepts, and the answer is written straight back. The same action is also built as an event for A W S EventBridge, for any downstream service to pick up.",
+      "click": "[data-r=ACCEPT] >> nth=0",
+      "wait": 1500
+    },
+    {
+      "say": "Real time where it matters, batch where it's enough, and rules owned by the business. All on one platform."
+    }
+  ]
+}
