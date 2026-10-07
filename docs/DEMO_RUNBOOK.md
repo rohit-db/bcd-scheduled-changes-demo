@@ -28,7 +28,8 @@ All commands below run from `bundles/trip_intel` with `--profile e2-demo-field-e
 1. **Real-time vs batch (10 min)** — Ops Console KPIs: event→detected p50 ≈ 190 ms, p95 ≈ 270 ms (measured
    2026-10-05 at 15 versions/s) vs the hourly lane's freshness. "Ingest once; each consumer picks its latency."
    Show the RTM job: single-node classic `m5d.2xlarge` — standalone RTM with a custom Lakebase sink needs
-   classic compute; RTM inside Lakeflow pipelines can run serverless (Public Preview) when the output is Kafka.
+   classic compute; RTM inside Lakeflow pipelines can run serverless (Public Preview) with Kafka-protocol sinks only.
+   Lakebase is the demo's sink, not the only one: Kafka/MSK natively, or any database/API via ForeachWriter.
    Dispatcher, batch pipeline and app are serverless.
 2. **Version-by-version change tracking (10 min)** — "N versions, M significant" (~85% are GDS re-saves with no
    business change). Click a schedule-change trip, walk v1→v12; noise is greyed. "This is your Lambda
@@ -75,6 +76,10 @@ To rerun the peak test: cancel the RTM run, then
 `databricks jobs run-now --json '{"job_id": 598063876765561, "python_params": ["--source","rate","--rows-per-second","100","--lakebase-host","<host>","--secret-scope","rohit-bcd-trip-intel","--checkpoint","/Volumes/users/rohit_bhagwat/trip_intel_checkpoints/rtm_load100b"]}'`
 
 ## Questions to ask
+- Which consumers truly need sub-second results, and which are fine with seconds or minutes? (Decides one pipeline vs two.)
+- How many shards does `uat01-HermesTripsDS` have? (One 8-core node fits up to 4 shards with 4 shuffle partitions.)
+- Can we register an enhanced fan-out (EFO) consumer on the stream? The docs recommend EFO for Real-Time Mode; it needs IAM permissions on their side.
+- In real GDS data, does a schedule change arrive as a new segment (HX + new HK) or an in-place status flip on the same segment? UAT test records do the latter.
 - EPAM's detection pairs prior HK → newer TK/UN/HX; the definition we were given is HX/UN → HK/KK/TK. Which is intended?
 - How many JSON-Logic rules exist in the current service, and can Denis share 3 real ones?
 - Who owns the EventBridge bus / IAM role for a UAT test?

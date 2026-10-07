@@ -13,7 +13,7 @@ flowchart LR
   end
 
   subgraph MS["Real-time consumers"]
-    LB[("Lakebase<br/>ops state · rules · outbox")]:::store
+    LB[("Operational sink<br/>Lakebase (demo) · Kafka / MSK<br/>DynamoDB · Redis · APIs")]:::store
     EB["EventBridge → Lambdas,<br/>notifications, seat service"]:::aws
   end
 

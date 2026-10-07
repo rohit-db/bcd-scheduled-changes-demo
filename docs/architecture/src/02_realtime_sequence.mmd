@@ -4,7 +4,7 @@ sequenceDiagram
   participant S as Real-Time Mode stream<br/>transformWithState
   participant ST as RocksDB state<br/>(previous version per trip)
   participant R as Rule cache<br/>(5 s TTL)
-  participant L as Lakebase
+  participant L as Lakebase<br/>(demo's operational sink)
   participant A as App (SSE)
   participant B as Browser
 

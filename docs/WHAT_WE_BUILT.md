@@ -31,7 +31,7 @@ In production both lanes read the same Kinesis stream; in the demo both read the
 |---|---|---|---|
 | 0 | **Data generator** | Pretends to be BCD's Kinesis feed: 50 bookings at a time, 12 versions each, 15 per second. Most versions are noise; some carry a real change (flight moved, seat lost, email changed, card changed, hotel added). Same JSON shape as BCD's real UAT records. | (Python inside the stream) |
 | 1 | **Real-time stream** | Reads each version, remembers the previous version of that booking, works out exactly what changed, checks the business rules, and decides actions. ~190 ms from event to decision. | Spark Structured Streaming **Real-Time Mode** on one small classic cluster |
-| 2 | **Operational database** | Where results land so apps can read them instantly: latest booking, every change, rule hits, pending actions. | **Lakebase** (managed Postgres) |
+| 2 | **Operational store** | Where results land so apps can read them instantly: latest booking, every change, rule hits, pending actions. Lakebase is our choice for the demo, not a requirement: the stream can equally publish to Kafka/MSK or write to any database or API (see "Where real-time results can go"). | **Lakebase** (managed Postgres) |
 | 3a | **Dispatcher** | Takes pending actions and sends them to AWS EventBridge (the thing EPAM said was impossible). Runs in "simulated" mode because our demo workspace has no AWS bus — it still builds the exact message. | Serverless job |
 | 3b | **Batch pipeline** | The analytics side, as a pipeline you can see: **bronze** keeps every raw booking version, **silver** parses it with data-quality checks and flattens segments, **gold** runs the *same* diff code as the real-time stream plus daily metrics. Runs hourly. | **Lakeflow Declarative Pipeline** (serverless) + Delta |
 | 3c | **Genie space "BCD Trip Changes"** | Analysts ask questions in English ("which carriers had the most schedule changes today?") over the gold tables. | **Genie** |
@@ -53,13 +53,69 @@ In production both lanes read the same Kinesis stream; in the demo both read the
 
 | Term | Say this |
 |---|---|
-| **Real-Time Mode (RTM)** | "A setting on Spark streaming that processes each event as it arrives instead of in micro-batches — milliseconds instead of seconds." Standalone RTM (what we use, because it writes to Lakebase) runs on a classic cluster. RTM *inside a Lakeflow pipeline* can run serverless (Public Preview) but only writes to Kafka today. |
+| **Real-Time Mode (RTM)** | "A setting on Spark streaming that processes each event as it arrives instead of in micro-batches — milliseconds instead of seconds." Standalone RTM (what we use) runs on a classic cluster and can write to Kafka or, through a ForeachWriter, to any database or API. RTM *inside a Lakeflow pipeline* can run serverless (Public Preview) but only writes to Kafka-protocol sinks (Kafka, MSK, Event Hubs); it has no ForeachWriter, so it can't write to Lakebase directly today. |
 | **transformWithState** | "Spark remembers the last version of each booking, so every new version is compared to the one right before it." This replaces their Lambda diff. |
 | **Lakebase** | "Postgres, managed by Databricks, sitting next to the lakehouse — so apps get millisecond reads." |
 | **JSON Logic** | "The rule format BCD's own service already uses." |
 | **Outbox** | "A to-do list of actions. Each one has a unique ID, so if anything retries, nobody gets two emails." |
 | **Edge-triggered rule** | "A rule fires once when its condition becomes true — not again on every one of the next 10 re-saves." |
 | **Serverless vs classic** | Real-time lane = one small always-on classic cluster. Everything else = serverless, pay per use. |
+
+## Operational vs analytical: why two lanes
+
+Databricks' own framing for streaming splits workloads in two:
+
+| | Operational | Analytical |
+|---|---|---|
+| Latency | sub-second (≈40–300 ms) | seconds to hours |
+| Who acts on it | a machine, in the loop | a person or a model |
+| Lands in | a message bus (Kafka) or an operational store (Lakebase, any OLTP database) | Delta tables |
+| BCD examples | alert ops, notify the traveler, call the seat service | finance reporting, Genie, EPAM's pipelines |
+| Engine | Structured Streaming, Real-Time Mode | Structured Streaming / Lakeflow pipelines, micro-batch |
+
+Both lanes use the **same Spark engine, the same feed and the same change-detection code** (`trip_intel`).
+That is the opposite of the "two engines" problem (e.g. Flink for real time + Spark for batch) where logic drifts.
+
+### Do they need two pipelines?
+
+Only if some consumer needs **sub-second** results. The deciding question for BCD is: *which consumers truly need
+sub-second, and which are fine with seconds or minutes?*
+
+- **Nobody needs sub-second** → **one** serverless Lakeflow pipeline: Kinesis → bronze → silver → change
+  detection → Delta, plus a sink to the operational store. Latency is seconds (micro-batch). Simplest, all serverless.
+- **Some consumers need sub-second** (e.g. traveler notifications, seat service) → two jobs reading the same stream:
+  1. the **real-time job** (Real-Time Mode) for those consumers only, and
+  2. a **bronze ingest** that lands every raw version once in Delta for everything else.
+
+  Real-Time Mode can't write Delta, which is why the raw copy is its own small job. It is not a second copy of the
+  business logic: both call the same library, so a schedule change means the same thing in both, and the
+  stream's decisions are queryable next to gold through Unity Catalog.
+
+What to avoid is the old "Lambda architecture" problem: two codebases that each implement the logic and drift apart.
+
+## Where real-time results can go (sinks)
+
+Lakebase is what the demo uses because apps need millisecond reads of the latest state. It isn't the only option.
+Real-Time Mode supports:
+
+- **Kafka / Amazon MSK / Event Hubs** topics, natively. Downstream services subscribe.
+- **Any database or API through a ForeachWriter**: Lakebase/Postgres (this demo), DynamoDB, Redis, an HTTP service,
+  or EventBridge directly. We send EventBridge events through an outbox so retries never create duplicates.
+- **Not supported as Real-Time Mode sinks:** Delta tables, Kinesis.
+
+A native Lakebase/Postgres sink is on the product roadmap. It would replace our custom ForeachWriter, and could let
+the real-time lane run in a serverless Lakeflow pipeline. Present it as roadmap, with no dates.
+
+## Customer stories and links we can share
+
+- MakeMyTrip (travel): 44 ms p50, ~500 ms p99 (from over a minute), +7% click-through —
+  https://www.databricks.com/blog/how-makemytrip-achieved-millisecond-personalization-scale-databricks
+- Coinbase: fraud and ML features, <100 ms p99 — https://www.databricks.com/customers/coinbase/lakeflow
+- Dutch Railways: train telemetry, one platform for real-time and analytics — https://www.databricks.com/customers/dutch-railways
+- Real-Time Mode GA announcement — https://www.databricks.com/blog/announcing-general-availability-real-time-mode-apache-spark-structured-streaming-databricks
+- Docs — https://docs.databricks.com/aws/en/structured-streaming/real-time
+- Fraud features with Real-Time Mode + Lakebase (same sink pattern as ours) —
+  https://community.databricks.com/t5/technical-blog/fraud-detection-feature-engineering-with-structured-streaming/ba-p/151308
 
 ## Coverage check against the 2026-10-01 call
 
@@ -72,7 +128,7 @@ Legend: ✅ built and shown · 🟡 partly / talk track only · ❌ not built ye
 | 3 | Which is cheaper? | ❌ | Cost table in runbook is empty — needs ≥1 h of billing data, then a query |
 | 4 | Data volume: 1–1.5M/day, 15/s normal, 50–100/s peak | ✅ | One small node: 15/s → p50 190 ms; 100/s → p50 73 ms, p99 128 ms |
 | 5 | "Ingest once, many consumers" (your whiteboard: Kinesis → bronze → several pipelines) | ✅ | Bronze table keeps every raw version; the ms lane reads the source directly (RTM can't read Delta), the batch lane reads bronze |
-| 6 | Read from their Kinesis stream | 🟡 | Code path exists (EPAM's exact options), **never run**; UAT finale is a stretch |
+| 6 | Read from their Kinesis stream | 🟡 | Batch lane: ✅ bronze reads `uat01-HermesTripsDS` read-only in UAT (12 real versions, all parsed). Real-time lane from Kinesis: code path exists, **not yet run** |
 | 7 | Deeply nested JSON gets flattened | ✅ | Parser flattens the PNR into a snapshot (our payload is simpler than real PNRs) |
 | 8 | Deduplication | ✅ | Duplicate/out-of-order versions tagged STALE and ignored; all writes idempotent |
 | 9 | 10–200 versions per booking; track every version vs previous | ✅ | Per-version diff + timeline view; EPAM's job only compares latest-vs-latest |
@@ -89,13 +145,13 @@ Legend: ✅ built and shown · 🟡 partly / talk track only · ❌ not built ye
 | 20 | Genie pricing (tokens vs compute) | 🟡 | You answered on the call; repeat as talk track |
 | 21 | Data-quality rules (DQT) | ✅ | Silver expectations: missing trip id / version dropped and counted; empty segments flagged — visible in the pipeline UI |
 | 22 | Your promise: "combine these, show how I'd architect, low-latency RTM, external app consuming in real time" | ✅ | The whole demo |
-| 23 | Your promise: send docs and customer stories | ❌ | Not sent — candidates: RTM GA blog, RTM fraud blog (Lakebase), MakeMyTrip |
+| 23 | Your promise: send docs and customer stories | ❌ | Not sent — links collected under "Customer stories and links we can share" |
 | 24 | Do it in UAT, not production | 🟡 | Built on e2-demo with synthetic data in their schema; UAT untouched |
 | 25 | Denis to send a real rule example | ❌ (theirs) | Ask in the demo; Rule Studio can take it live |
 | 26 | EPAM's job design (one shared cluster, manual runs, redeploys) | 🟡 | Talk track: separate ingest from consumers; run ingest continuously |
 | 27 | EPAM detection logic (HK → TK/UN/HX vs HX/UN → HK/KK/TK) | 🟡 | Ours follows the given definition; ask which is intended (in runbook) |
 
-**Remaining gaps before Thursday:** cost numbers (#3) and the follow-up links (#23). Per-consumer rule sets (#12/#13) and a real Lambda call (#16) are larger and better
+**Remaining gaps before Thursday:** cost numbers (#3) and sending the follow-up links (#23). Per-consumer rule sets (#12/#13) and a real Lambda call (#16) are larger and better
 positioned as "next step with your team".
 
 ## Demo flow (55 min) — see `DEMO_RUNBOOK.md` for commands

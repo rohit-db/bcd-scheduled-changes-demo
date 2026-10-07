@@ -11,6 +11,7 @@ import tempfile
 
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
+from pyspark.sql.streaming import StreamingQueryListener
 
 # The bundle syncs src/ as workspace files (no wheel): import from it on the driver, and ship it
 # to Python workers as a zip so the UDF and the stateful processor can import trip_intel/rtm.
@@ -19,6 +20,7 @@ sys.path.insert(0, SRC)
 
 from rtm.lakebase import conninfo  # noqa: E402
 from rtm.processor import OUTPUT_SCHEMA, TripProcessor  # noqa: E402
+from rtm.progress import latency_line  # noqa: E402
 from rtm.sink import LakebaseSink  # noqa: E402
 from trip_intel.generator import payload_for  # noqa: E402
 
@@ -63,10 +65,29 @@ def source_df(spark, args):
     )
 
 
+class LatencyLogger(StreamingQueryListener):
+    """Prints the built-in RTM latency percentiles (e2e / source queuing / processing) once per batch."""
+
+    def onQueryStarted(self, event):
+        pass
+
+    def onQueryProgress(self, event):
+        line = latency_line(event.progress.json)
+        if line:
+            print(line, flush=True)
+
+    def onQueryIdle(self, event):
+        pass
+
+    def onQueryTerminated(self, event):
+        pass
+
+
 def main():
     args = parse_args()
     spark = SparkSession.builder.getOrCreate()
     ship_packages(spark)
+    spark.streams.addListener(LatencyLogger())
     from databricks.sdk.runtime import dbutils
 
     dsn = conninfo(args.lakebase_host, dbutils.secrets.get(args.secret_scope, "lakebase-password"))

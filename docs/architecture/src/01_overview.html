@@ -41,12 +41,12 @@
 <!-- Databricks workspace -->
 <div class="panel dbx" style="left:280px;top:110px;width:1060px;height:780px"><div class="t">Databricks workspace</div></div>
 
-<div class="band rt" style="left:300px;top:145px;width:1020px;height:345px"><div class="t">Real-time lane <span>always on · ~0.2 s event → Lakebase</span></div></div>
+<div class="band rt" style="left:300px;top:145px;width:1020px;height:345px"><div class="t">Real-time lane <span>always on · ~0.2 s event → operational store</span></div></div>
 <div class="box" style="left:320px;top:200px;width:210px;height:170px;border-color:#ff3621">
   <b>Real-Time Mode stream</b><div class="s">Structured Streaming<br>transformWithState: compare each version to the previous one · tag · rules · actions</div>
   <span class="chip red">1 classic node</span></div>
 <div class="box" style="left:600px;top:185px;width:240px;height:280px;border-color:#2272b4">
-  <b>Lakebase</b><div class="s">managed Postgres, millisecond reads</div>
+  <b>Lakebase <span style="font-weight:500;font-size:12px;color:#5f7281">(this demo's sink)</span></b><div class="s">managed Postgres, millisecond reads</div>
   <span class="tbl">trip_latest</span><span class="tbl">change_events</span><span class="tbl">rule_hits</span>
   <span class="tbl">rules</span><span class="tbl">action_outbox</span><span class="tbl">traveler_responses</span></div>
 <div class="box" style="left:905px;top:195px;width:200px;height:165px;border-color:#1f8a4c">
@@ -73,6 +73,12 @@
 <div class="uc" style="left:300px;top:790px;width:1020px;height:80px">
   <b>Unity Catalog</b>tables · volumes · Lakebase · service credentials for Kinesis and EventBridge · lineage · access control
   <div style="color:#a9bcc6;margin-top:6px;font-size:12px">Deployed as one Databricks Asset Bundle: same code to the demo workspace and BCD UAT</div></div>
+
+<!-- sink options: Lakebase is one choice, not the only one -->
+<div class="facts" style="left:1370px;top:110px;width:200px;height:200px">
+  <h3>Sink options</h3>
+  <div style="display:block;border:0;font-size:12.5px;line-height:1.45">Real-Time Mode writes to <b>Kafka / MSK / Event Hubs</b> natively, or to <b>any database or API</b> through a ForeachWriter: Lakebase / Postgres (shown), DynamoDB, Redis, HTTP.<br><span style="color:#5f7281">Not a sink: Delta, Kinesis.</span></div>
+</div>
 
 <!-- right: BCD AWS targets -->
 <div class="panel aws" style="left:1370px;top:330px;width:200px;height:250px"><div class="t">BCD AWS</div></div>

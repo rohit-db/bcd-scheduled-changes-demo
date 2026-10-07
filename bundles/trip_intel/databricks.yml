@@ -161,7 +161,8 @@ resources:
       job_clusters:
         - job_cluster_key: rtm
           new_cluster:
-            spark_version: 18.x-scala2.13
+            spark_version: 18.2.x-scala2.13   # docs: Python RTM below 5 records/s adds latency before DBR 18.2
+            runtime_engine: STANDARD          # docs: turn off Photon for Real-Time Mode
             node_type_id: m5d.2xlarge
             num_workers: 0
             aws_attributes:
