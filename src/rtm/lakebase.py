@@ -6,9 +6,12 @@ import psycopg
 from trip_intel.rules import Rule
 
 
-def conninfo(host: str, password: str, user: str = "trip_intel_app", dbname: str = "databricks_postgres") -> str:
+def conninfo(host: str, password: str, user: str = "trip_intel_app", dbname: str = "databricks_postgres",
+             schema: str | None = None) -> str:
+    # A schema other than public keeps side-by-side runs (micro-batch comparison, load tests) in their own tables.
+    extra = {"options": f"-c search_path={schema}"} if schema else {}
     return psycopg.conninfo.make_conninfo(host=host, port=5432, dbname=dbname, user=user, password=password,
-                                          sslmode="require")
+                                          sslmode="require", **extra)
 
 
 def load_active_rules(dsn: str) -> list[Rule]:

@@ -44,6 +44,11 @@ def parse_args():
     p.add_argument("--kinesis-region", default="us-east-1")
     p.add_argument("--kinesis-credential", default="kinesis_reader_cred_uat")
     p.add_argument("--trigger", choices=["realtime", "processing"], default="realtime")
+    p.add_argument("--pg-schema", default=None, help="Postgres schema for this run (default public)")
+    p.add_argument("--seq-offset", type=int, default=0,
+                   help="start the rate generator here (multiple of 600) so a new run makes new trips, not old ones")
+    p.add_argument("--kinesis-initial-position", default="latest", choices=["latest", "trim_horizon"])
+    p.add_argument("--debug-metrics", action="store_true", help="log full progress incl. task busyTimeFraction")
     return p.parse_args()
 
 
@@ -52,14 +57,14 @@ def source_df(spark, args):
         gen = F.udf(payload_for, "string")
         return (
             spark.readStream.format("rate").option("rowsPerSecond", args.rows_per_second).option("numPartitions", 1).load()
-            .select(gen("value").alias("payload"), F.col("timestamp").alias("event_ts"))
+            .select(gen(F.col("value") + args.seq_offset).alias("payload"), F.col("timestamp").alias("event_ts"))
         )
     return (
         spark.readStream.format("kinesis")
         .option("streamName", args.kinesis_stream)
         .option("region", args.kinesis_region)
         .option("serviceCredential", args.kinesis_credential)
-        .option("initialPosition", "latest")
+        .option("initialPosition", args.kinesis_initial_position)
         .load()
         .select(F.col("data").cast("string").alias("payload"), F.col("approximateArrivalTimestamp").alias("event_ts"))
     )
@@ -68,6 +73,9 @@ def source_df(spark, args):
 class LatencyLogger(StreamingQueryListener):
     """Prints the built-in RTM latency percentiles (e2e / source queuing / processing) once per batch."""
 
+    def __init__(self, full_progress: bool = False):
+        self.full_progress = full_progress
+
     def onQueryStarted(self, event):
         pass
 
@@ -75,6 +83,8 @@ class LatencyLogger(StreamingQueryListener):
         line = latency_line(event.progress.json)
         if line:
             print(line, flush=True)
+        if self.full_progress:
+            print("RTM_PROGRESS " + event.progress.json, flush=True)
 
     def onQueryIdle(self, event):
         pass
@@ -87,10 +97,12 @@ def main():
     args = parse_args()
     spark = SparkSession.builder.getOrCreate()
     ship_packages(spark)
-    spark.streams.addListener(LatencyLogger())
+    if args.debug_metrics:
+        spark.conf.set("spark.databricks.streaming.execution.enableDebugMetrics", "true")
+    spark.streams.addListener(LatencyLogger(full_progress=args.debug_metrics))
     from databricks.sdk.runtime import dbutils
 
-    dsn = conninfo(args.lakebase_host, dbutils.secrets.get(args.secret_scope, "lakebase-password"))
+    dsn = conninfo(args.lakebase_host, dbutils.secrets.get(args.secret_scope, "lakebase-password"), schema=args.pg_schema)
     versions = source_df(spark, args).select(
         F.get_json_object("payload", "$.identification.id").alias("trip_id"),
         F.get_json_object("payload", "$.identification.version").cast("int").alias("version"),
