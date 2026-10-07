@@ -125,10 +125,10 @@ Legend: ✅ built and shown · 🟡 partly / talk track only · ❌ not built ye
 |---|---|---|---|
 | 1 | Batch vs real-time — which to build? | ✅ | Ops Console: ~190 ms real-time lane vs hourly lane freshness, side by side |
 | 2 | Cluster vs serverless | ✅ | RTM on 1 classic node; dispatcher, analytics, app serverless — "per use case" |
-| 3 | Which is cheaper? | ❌ | Cost table in runbook is empty — needs ≥1 h of billing data, then a query |
+| 3 | Which is cheaper? | ✅ | Measured in UAT: real-time node 1.37 DBU/h (≈ $0.21/h list + EC2), serverless pipeline ≈ $0.10/run. Micro-batch on the same node costs the same but is ~5× slower (≈1 s vs ≈0.19 s p50) |
 | 4 | Data volume: 1–1.5M/day, 15/s normal, 50–100/s peak | ✅ | One small node: 15/s → p50 190 ms; 100/s → p50 73 ms, p99 128 ms |
 | 5 | "Ingest once, many consumers" (your whiteboard: Kinesis → bronze → several pipelines) | ✅ | Bronze table keeps every raw version; the ms lane reads the source directly (RTM can't read Delta), the batch lane reads bronze |
-| 6 | Read from their Kinesis stream | 🟡 | Batch lane: ✅ bronze reads `uat01-HermesTripsDS` read-only in UAT (12 real versions, all parsed). Real-time lane from Kinesis: code path exists, **not yet run** |
+| 6 | Read from their Kinesis stream | 🟡 | Batch lane ✅ (12 real versions parsed). Real-time lane: connected to all 4 shards on DBR 19 polling; DBR 18.2 needs EFO. No live records to show yet — ask EPAM to publish test versions |
 | 7 | Deeply nested JSON gets flattened | ✅ | Parser flattens the PNR into a snapshot (our payload is simpler than real PNRs) |
 | 8 | Deduplication | ✅ | Duplicate/out-of-order versions tagged STALE and ignored; all writes idempotent |
 | 9 | 10–200 versions per booking; track every version vs previous | ✅ | Per-version diff + timeline view; EPAM's job only compares latest-vs-latest |
@@ -146,7 +146,7 @@ Legend: ✅ built and shown · 🟡 partly / talk track only · ❌ not built ye
 | 21 | Data-quality rules (DQT) | ✅ | Silver expectations: missing trip id / version dropped and counted; empty segments flagged — visible in the pipeline UI |
 | 22 | Your promise: "combine these, show how I'd architect, low-latency RTM, external app consuming in real time" | ✅ | The whole demo |
 | 23 | Your promise: send docs and customer stories | ❌ | Not sent — links collected under "Customer stories and links we can share" |
-| 24 | Do it in UAT, not production | 🟡 | Built on e2-demo with synthetic data in their schema; UAT untouched |
+| 24 | Do it in UAT, not production | ✅ | Deployed in BCD UAT (`bcd_api_uat.databricks_demo`, own Lakebase); stream, micro-batch comparison, 100/s test, batch lane from their Kinesis all run there. App pending Git credential |
 | 25 | Denis to send a real rule example | ❌ (theirs) | Ask in the demo; Rule Studio can take it live |
 | 26 | EPAM's job design (one shared cluster, manual runs, redeploys) | 🟡 | Talk track: separate ingest from consumers; run ingest continuously |
 | 27 | EPAM detection logic (HK → TK/UN/HX vs HX/UN → HK/KK/TK) | 🟡 | Ours follows the given definition; ask which is intended (in runbook) |

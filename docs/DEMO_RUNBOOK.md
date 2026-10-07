@@ -60,13 +60,34 @@ where u.usage_date >= current_date() - 1
 group by all
 ```
 
-| Lane | Compute | DBU/hr | $/hr list | Notes |
-|---|---|---|---|---|
-| Real-time (RTM) | 1× m5d.2xlarge classic, 24×7 | | + EC2 | Same node handles BCD's 100/s peak (measured below) |
-| Batch pipeline hourly | Serverless pipeline + job | | | ~2 min/run |
-| Dispatcher | Serverless jobs | | | |
+Measured in BCD UAT (`system.billing`, list prices in that workspace):
 
-## Measured latency (single m5d.2xlarge, 2026-10-05)
+| Lane | Compute | DBU/hr | Databricks $/hr (list) | Notes |
+|---|---|---|---|---|
+| Real-time (RTM) | 1× m5d.2xlarge classic, on-demand, 24×7 | 1.37 | $0.21 (Jobs Compute $0.15/DBU) | ≈ $150/month 24×7, **plus EC2** on BCD's AWS bill (m5d.2xlarge on-demand, ≈ $0.45/hr AWS list). Same node handles the 100/s peak at 14% avg CPU |
+| Batch pipeline | Serverless pipeline | ≈ 0.28 DBU per run | ≈ $0.10 per run ($0.35/DBU serverless) | Demo volume (10,800 versions/run); hourly ≈ $70/month. Scales with data volume |
+| Dispatcher | Serverless job | n/a yet | | Billing lags a few hours; check Thursday morning |
+
+## Measured in BCD UAT (single m5d.2xlarge, DBR 18.2, 2026-10-07)
+Same job, same node type, side by side; steady-state 4-minute windows; synthetic versions in BCD's JSON shape.
+
+| Run | Rate | Event → detected p50 / p95 / p99 | Event → in Lakebase p50 / p99 | Spark built-in e2e p50 / p95 / p99 |
+|---|---|---|---|---|
+| Real-Time Mode | 15/s | 185 / 254 / 776 ms (182 / 227 / 274 with no checkpoint in window) | 284 / 1,070 ms | 285 / 343 / 423 ms |
+| Micro-batch, 1 s trigger | 15/s | 987 / 1,436 / 1,580 ms | 1,058 / 1,642 ms | n/a (RTM-only metric) |
+| Real-Time Mode | 100/s | 73 / 108 / 124 ms | 171 / 248 ms | |
+
+- CPU (system.compute.node_timeline): 15/s avg 5%; 100/s avg 14%, p95 27% — below the docs' ~50% utilization target.
+- Spark's built-in `e2eLatencyMs` (record written to source → written downstream) matches our event → in Lakebase.
+- Latency is lower at 100/s than 15/s; the docs note Python RTM has extra latency at low throughput.
+
+**Kinesis (real feed, read-only):**
+- DBR 18.2 Real-Time Mode **rejects Kinesis polling** (`KINESIS_POLLING_MODE_UNSUPPORTED`); it needs enhanced fan-out (EFO), which registers a consumer on BCD's stream and needs IAM changes on their side.
+- DBR 19.x polling works: connected to all **4 shards** and caught up. No records to read (yesterday's test records are past 24 h retention).
+- Polling used ~2.5 GetRecords/s per shard, half of each shard's 5/s read limit shared with EPAM's reader. We stopped it after the test. For production: EFO.
+- 4 shards + 4 shuffle partitions = 8 task slots = exactly one m5d.2xlarge; no headroom without a larger node or fewer partitions.
+
+## Measured latency on e2-demo (single m5d.2xlarge, DBR 18.x, 2026-10-05)
 | Rate | Event → detected p50 | p95 | p99 | Event → in Lakebase p50 |
 |---|---|---|---|---|
 | 15 versions/s (normal) | 190 ms | 270 ms | — | 294 ms |
@@ -83,6 +104,17 @@ To rerun the peak test: cancel the RTM run, then
 - EPAM's detection pairs prior HK → newer TK/UN/HX; the definition we were given is HX/UN → HK/KK/TK. Which is intended?
 - How many JSON-Logic rules exist in the current service, and can Denis share 3 real ones?
 - Who owns the EventBridge bus / IAM role for a UAT test?
+
+## UAT (BCD's workspace) — T-60 if demoing there
+- Start stream: `databricks jobs run-now` on `[dev rohit_bhagwat] trip_intel_rtm` (job 141818085214296) with
+  `--seq-offset` above the last run (trips so far reach T0104xxx → use `--seq-offset 1800000`) and a new `--checkpoint`.
+  Reusing an offset writes nothing: the idempotent sink skips trips it has already seen.
+- Run the batch job once (job 608337505977714) so the analytical tier shows minutes, not a day.
+- Start the dispatcher (job 196400368671395) if showing EventBridge entries.
+- App: deployed from private repo `rohit-db/bcd-trip-intel-app` once the app's Git credential is set; until then use a
+  local app on UAT data (port 8766).
+- Rule Studio: disable rehearsal rules ("Traveler email changed").
+- Stop everything after the demo (nothing should run overnight on BCD's bill).
 
 ## UAT finale (stretch)
 - In `bcd-api-uat`: single-node DBR 18 LTS dedicated cluster with the same spark_conf as the bundle; run

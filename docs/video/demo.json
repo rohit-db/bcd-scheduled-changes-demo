@@ -1,5 +1,5 @@
 {
-  "url": "http://localhost:8765/",
+  "url": "http://localhost:8766/",
   "viewport": {
     "width": 1440,
     "height": 900
@@ -7,17 +7,17 @@
   "voice": "am_michael",
   "steps": [
     {
-      "say": "This is the B C D Trip Intelligence app, running on Databricks. Every new version of a booking flows through it in real time.",
+      "say": "This is the B C D Trip Intelligence app, running against B C D's own U A T workspace on Databricks. Every new version of a booking flows through it in real time.",
       "waitfor": "#feed li"
     },
     {
       "say": "Across the top: in the last five minutes, thousands of booking versions arrived, but only about fifteen percent changed anything that matters. The rest are routine re-saves from the booking systems."
     },
     {
-      "say": "Each version is compared to the one before it and classified in well under a hundred milliseconds, from event to decision, at B C D's peak rate of one hundred versions a second."
+      "say": "Each version is compared to the one before it and classified in about two tenths of a second, from event to decision. At B C D's holiday peak of one hundred versions a second, on the same single node, it's about seventy milliseconds."
     },
     {
-      "say": "On the right, the hourly batch lane is minutes behind. Same data, two consumers, each at the latency it actually needs."
+      "say": "On the right are two tiers. The operational tier is real time, for ops, travelers and services. The analytical tier refreshes hourly, for reporting and Genie. Same feed, same change logic, each consumer at the latency it actually needs."
     },
     {
       "say": "Below is the live feed of significant changes, tagged with what changed and which business rules fired. I'll open a schedule change.",
@@ -66,7 +66,7 @@
     },
     {
       "say": "And the hits counter for the new rule is already climbing.",
-      "wait": 6000
+      "eval": "(async () => { const name = document.querySelector('#rule-name').value; const hits = () => [...document.querySelectorAll('#rules-table tbody tr')].find(tr => tr.querySelector('b')?.textContent === name && tr.querySelector('.status.active'))?.querySelector('td.num'); for (let i = 0; i < 90 && (!hits() || hits().textContent.trim() === '0'); i++) await new Promise(r => setTimeout(r, 500)); })()"
     },
     {
       "click": "button[data-view=traveler]",
