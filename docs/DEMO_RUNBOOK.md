@@ -1,22 +1,29 @@
 # BCD Real-Time Demos — Runbook (Thu 2026-10-08, 2–3pm ET)
 
-Everything runs on **e2-demo-field-eng** (bundle `bundles/trip_intel`, target `e2demo`).
-FEVM serverless workspaces reject classic clusters (Real-Time Mode is classic-only), and FEVM's IP access
-list blocks e2-demo from reaching FEVM Lakebase — so stream, Lakebase, jobs and app live together on e2-demo.
+The demo runs in one of two workspaces from the same bundle (`bundles/trip_intel`):
 
-| Thing | Where |
+- **BCD UAT** (target `uat`, profile `bcd-api-uat`): their workspace, schema `bcd_api_uat.databricks_demo`, Lakebase
+  `databricks-trip-intel`. This is where the latest measurements were taken. Use the "UAT (BCD's workspace) — T-60"
+  section below.
+- **Demo workspace** (target `e2demo`, profile `e2-demo-field-eng`): the fallback, with the Genie space over the
+  stream's decisions. Table below.
+
+FEVM serverless workspaces reject classic clusters (Real-Time Mode is classic-only), and FEVM's IP access
+list blocks e2-demo from reaching FEVM Lakebase, which is why the demo build moved to e2-demo.
+
+| Thing (demo workspace) | Where |
 |---|---|
 | App | https://rohit-bcd-trip-intel-1444828305810485.aws.databricksapps.com |
 | RTM job | `[dev rohit_bhagwat] trip_intel_rtm` (job 598063876765561) |
-| Lakebase | instance `rohit-bcd-trip-intel` · `ep-spring-rice-d1tg6e60.database.us-west-2.cloud.databricks.com` |
+| Lakebase | instance `rohit-bcd-trip-intel` · `ep-spring-rice-d1tg6e60.database.us-west-2.cloud.databricks.com`; registered in UC as `rohit_bcd_trip_intel_ops` |
 | Batch pipeline | `[dev rohit_bhagwat] trip_intel_batch_pipeline` → `users.rohit_bhagwat.bronze_pnr_versions`, `silver_pnr_versions`, `silver_pnr_segments`, `gold_version_changes`, `gold_daily_change_summary` |
 | Batch job | `[dev rohit_bhagwat] trip_intel_batch` (land versions → refresh pipeline), hourly |
-| Genie space | "BCD Trip Changes" — `01f1c1041883164e9f82e7116000e7bb` |
+| Genie space | "BCD Trip Changes" — `01f1c1041883164e9f82e7116000e7bb` (gold + `rt_rule_hits`, `rt_actions` views) |
 | Secret | scope `rohit-bcd-trip-intel`, key `lakebase-password` (role `trip_intel_app`) |
 
-All commands below run from `bundles/trip_intel` with `--profile e2-demo-field-eng -t e2demo`.
+Commands in the next section run from `bundles/trip_intel` with `--profile e2-demo-field-eng -t e2demo`.
 
-## T-60 min
+## T-60 min (demo workspace)
 - Start stream: `databricks bundle run trip_intel_rtm --no-wait` (cluster ~5 min; first rows ~6 min).
 - Start dispatcher: `databricks bundle run trip_intel_dispatcher --no-wait`.
 - Run the batch lane once: `databricks bundle run trip_intel_batch` (~2 min; lands 10,800 versions and refreshes the pipeline).
@@ -25,8 +32,9 @@ All commands below run from `bundles/trip_intel` with `--profile e2-demo-field-e
 - Rule Studio → disable rules created during rehearsal.
 
 ## Arc (55 min)
-1. **Real-time vs batch (10 min)** — Ops Console KPIs: event→detected p50 ≈ 190 ms, p95 ≈ 270 ms (measured
-   2026-10-05 at 15 versions/s) vs the hourly lane's freshness. "Ingest once; each consumer picks its latency."
+1. **Real-time vs batch (10 min)** — Ops Console tiers: event→detected p50 ≈ 185 ms, p95 ≈ 250 ms at 15 versions/s
+   (BCD UAT, 2026-10-07) vs the analytical tier's freshness. Then the measured comparison: the same job as a 1 s
+   micro-batch is ≈ 1 s p50. "Ingest once; each consumer picks its latency. Which of yours need sub-second?"
    Show the RTM job: single-node classic `m5d.2xlarge` — standalone RTM with a custom Lakebase sink needs
    classic compute; RTM inside Lakeflow pipelines can run serverless (Public Preview) with Kafka-protocol sinks only.
    Lakebase is the demo's sink, not the only one: Kafka/MSK natively, or any database/API via ForeachWriter.
@@ -35,7 +43,7 @@ All commands below run from `bundles/trip_intel` with `--profile e2-demo-field-e
    business change). Click a schedule-change trip, walk v1→v12; noise is greyed. "This is your Lambda
    track-changes service as one stateful operator — and no version is skipped. A latest-only MERGE compares
    v1 to v15 and loses everything in between."
-3. **Rules engine (15 min)** — Rule Studio live: ask Denis for a real rule; draft → preview on recent versions →
+3. **Rules engine (15 min)** — Rule Studio live: ask their architect for a real rule; draft → preview on recent versions →
    approve → hits appear within seconds, no redeploy. Rules are JSON Logic (same format as their service).
    Edge-triggered: "no seat" fires once, not on every re-save.
 4. **Actions to AWS (10 min)** — Traveler view card → Accept. Show `action_outbox.eventbridge_entry`
@@ -102,7 +110,7 @@ To rerun the peak test: cancel the RTM run, then
 - Can we register an enhanced fan-out (EFO) consumer on the stream? The docs recommend EFO for Real-Time Mode; it needs IAM permissions on their side.
 - In real GDS data, does a schedule change arrive as a new segment (HX + new HK) or an in-place status flip on the same segment? UAT test records do the latter.
 - EPAM's detection pairs prior HK → newer TK/UN/HX; the definition we were given is HX/UN → HK/KK/TK. Which is intended?
-- How many JSON-Logic rules exist in the current service, and can Denis share 3 real ones?
+- How many JSON-Logic rules exist in the current service, and can their architect share 3 real ones?
 - Who owns the EventBridge bus / IAM role for a UAT test?
 
 ## UAT (BCD's workspace) — T-60 if demoing there
@@ -116,7 +124,7 @@ To rerun the peak test: cancel the RTM run, then
 - Rule Studio: disable rehearsal rules ("Traveler email changed").
 - Stop everything after the demo (nothing should run overnight on BCD's bill).
 
-## UAT finale (stretch)
+## UAT finale (original plan, superseded by the UAT section above)
 - In `bcd-api-uat`: single-node DBR 18 LTS dedicated cluster with the same spark_conf as the bundle; run
   `src/rtm/job.py --source kinesis --kinesis-stream uat01-HermesTripsDS --kinesis-credential kinesis_reader_cred_uat`.
 - It needs a Lakebase reachable from their workspace (an e2-demo Lakebase is likely blocked the same way FEVM was).

@@ -1,3 +1,6 @@
+> **Legacy:** talk track for the earlier Lakeflow primer (root bundle). For the real-time demo, see
+> [`DEMO_RUNBOOK.md`](DEMO_RUNBOOK.md) and [`WHAT_WE_BUILT.md`](WHAT_WE_BUILT.md).
+
 # LDP Primer + Scheduled Changes Demo — Cheat Sheet
 
 **Audience:** Bojidar Todorov + OMS team (BCD) · **Duration:** ~30 min

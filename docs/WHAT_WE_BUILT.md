@@ -25,16 +25,17 @@ Diagrams (overview, sequences, pipeline, deployment, target state): [`docs/archi
  Same booking feed ──► 3b. Lakeflow pipeline (hourly, serverless): bronze → silver → gold ──► Genie
                           (raw JSON)   (parsed + DQ)  (same diff logic, daily metrics)
 ```
-In production both lanes read the same Kinesis stream; in the demo both read the same generator.
+In production both lanes read the same Kinesis stream. In the demo both use the same generator, and in BCD UAT the
+bronze table also reads their Kinesis stream (read-only), tagged `source = 'kinesis'`.
 
 | # | Piece | What it does, in plain words | Databricks product |
 |---|---|---|---|
 | 0 | **Data generator** | Pretends to be BCD's Kinesis feed: 50 bookings at a time, 12 versions each, 15 per second. Most versions are noise; some carry a real change (flight moved, seat lost, email changed, card changed, hotel added). Same JSON shape as BCD's real UAT records. | (Python inside the stream) |
-| 1 | **Real-time stream** | Reads each version, remembers the previous version of that booking, works out exactly what changed, checks the business rules, and decides actions. ~190 ms from event to decision. | Spark Structured Streaming **Real-Time Mode** on one small classic cluster |
+| 1 | **Real-time stream** | Reads each version, remembers the previous version of that booking, works out exactly what changed, checks the business rules, and decides actions. ~185 ms from event to decision at 15/s, ~73 ms at 100/s (measured in BCD UAT). The same job can run as a 1 s micro-batch (~1 s) for comparison. | Spark Structured Streaming **Real-Time Mode** on one small classic cluster |
 | 2 | **Operational store** | Where results land so apps can read them instantly: latest booking, every change, rule hits, pending actions. Lakebase is our choice for the demo, not a requirement: the stream can equally publish to Kafka/MSK or write to any database or API (see "Where real-time results can go"). | **Lakebase** (managed Postgres) |
 | 3a | **Dispatcher** | Takes pending actions and sends them to AWS EventBridge (the thing EPAM said was impossible). Runs in "simulated" mode because our demo workspace has no AWS bus — it still builds the exact message. | Serverless job |
 | 3b | **Batch pipeline** | The analytics side, as a pipeline you can see: **bronze** keeps every raw booking version, **silver** parses it with data-quality checks and flattens segments, **gold** runs the *same* diff code as the real-time stream plus daily metrics. Runs hourly. | **Lakeflow Declarative Pipeline** (serverless) + Delta |
-| 3c | **Genie space "BCD Trip Changes"** | Analysts ask questions in English ("which carriers had the most schedule changes today?") over the gold tables. | **Genie** |
+| 3c | **Genie space "BCD Trip Changes"** | Analysts ask questions in English ("which carriers had the most schedule changes today?") over the gold tables, and over the stream's own decisions (rule hits, actions) through Lakebase registered in Unity Catalog. | **Genie** |
 | 4 | **Web app** | Three screens (below). | **Databricks App** + Foundation Model (Claude) |
 
 ### The three screens
@@ -117,16 +118,24 @@ the real-time lane run in a serverless Lakeflow pipeline. Present it as roadmap,
 - Fraud features with Real-Time Mode + Lakebase (same sink pattern as ours) —
   https://community.databricks.com/t5/technical-blog/fraud-detection-feature-engineering-with-structured-streaming/ba-p/151308
 
+## Open findings to raise with BCD
+
+- **How a schedule change looks in real data.** Our rule pairs a cancelled segment with a new confirmed one; UAT test
+  records flip the status on the same segment and move its time (tagged `SEGMENT_MODIFIED` today).
+- **Kinesis for Real-Time Mode:** EFO on Runtime 18.2 (an AWS-side consumer and IAM change) or Runtime 19 polling,
+  which shares each shard's read limit with EPAM's reader. The UAT stream has 4 shards.
+- **State expiry.** Decide how long to remember a trip after its last version or travel date.
+
 ## Coverage check against the 2026-10-01 call
 
 Legend: ✅ built and shown · 🟡 partly / talk track only · ❌ not built yet
 
 | # | What came up in the call | Status | Where it's answered |
 |---|---|---|---|
-| 1 | Batch vs real-time — which to build? | ✅ | Ops Console: ~190 ms real-time lane vs hourly lane freshness, side by side |
+| 1 | Batch vs real-time — which to build? | ✅ | Ops Console shows operational vs analytical tiers side by side; measured in UAT: Real-Time Mode ≈0.19 s vs the same job as a 1 s micro-batch ≈1 s (p50) |
 | 2 | Cluster vs serverless | ✅ | RTM on 1 classic node; dispatcher, analytics, app serverless — "per use case" |
 | 3 | Which is cheaper? | ✅ | Measured in UAT: real-time node 1.37 DBU/h (≈ $0.21/h list + EC2), serverless pipeline ≈ $0.10/run. Micro-batch on the same node costs the same but is ~5× slower (≈1 s vs ≈0.19 s p50) |
-| 4 | Data volume: 1–1.5M/day, 15/s normal, 50–100/s peak | ✅ | One small node: 15/s → p50 190 ms; 100/s → p50 73 ms, p99 128 ms |
+| 4 | Data volume: 1–1.5M/day, 15/s normal, 50–100/s peak | ✅ | One small node in UAT: 15/s → p50 185 ms; 100/s → p50 73 ms, p99 124 ms at 14% avg CPU |
 | 5 | "Ingest once, many consumers" (your whiteboard: Kinesis → bronze → several pipelines) | ✅ | Bronze table keeps every raw version; the ms lane reads the source directly (RTM can't read Delta), the batch lane reads bronze |
 | 6 | Read from their Kinesis stream | 🟡 | Batch lane ✅ (12 real versions parsed). Real-time lane: connected to all 4 shards on DBR 19 polling; DBR 18.2 needs EFO. No live records to show yet — ask EPAM to publish test versions |
 | 7 | Deeply nested JSON gets flattened | ✅ | Parser flattens the PNR into a snapshot (our payload is simpler than real PNRs) |
@@ -135,32 +144,36 @@ Legend: ✅ built and shown · 🟡 partly / talk track only · ❌ not built ye
 | 10 | "Only send significant versions" (throttling idea) | ✅ | ~85% tagged NO_SIGNIFICANT_CHANGE and suppressed from the feed |
 | 11 | Replace the Lambda "track changes" service | ✅ | Same logic as one stateful step in the stream |
 | 12 | Different consumers care about different changes (finance → payment, etc.) | 🟡 | Tags (PAYMENT_CHANGED, CONTACT_CHANGED…) + rule targets; **no per-consumer subscription screen** |
-| 13 | Rules engine is "the core" (Denis); multiple schemas, many rule sets | 🟡 | One schema (trips), unlimited rules; **no grouping into rule sets per consumer** |
+| 13 | Rules engine is "the core" (their architect); multiple schemas, many rule sets | 🟡 | One schema (trips), unlimited rules; **no grouping into rule sets per consumer** |
 | 14 | Business analysts write rules, not developers | ✅ | Rule Studio: English → JSON Logic → preview → approve |
 | 15 | Example: segment has no seat → invoke a service | ✅ | Seed rule "Confirmed flight without a seat" → INVOKE_SERVICE seat-assignment-service |
 | 16 | Trigger a Lambda / API; sync or async? | 🟡 | Async via outbox shown; **no live Lambda/API call, no sync example** |
 | 17 | Publish to EventBridge (EPAM said impossible) | 🟡 | Exact PutEvents message built and stored; **simulated** — no AWS bus in our workspace |
 | 18 | Consume *from* EventBridge | ❌ | Talk track only |
-| 19 | Genie for analysts in natural language | ✅ | Genie space "BCD Trip Changes" over the gold tables, with sample questions |
+| 19 | Genie for analysts in natural language | ✅ | Genie space "BCD Trip Changes" over gold and the stream's decisions, with sample questions (demo workspace; UAT pending a catalog decision) |
 | 20 | Genie pricing (tokens vs compute) | 🟡 | You answered on the call; repeat as talk track |
 | 21 | Data-quality rules (DQT) | ✅ | Silver expectations: missing trip id / version dropped and counted; empty segments flagged — visible in the pipeline UI |
 | 22 | Your promise: "combine these, show how I'd architect, low-latency RTM, external app consuming in real time" | ✅ | The whole demo |
 | 23 | Your promise: send docs and customer stories | ❌ | Not sent — links collected under "Customer stories and links we can share" |
 | 24 | Do it in UAT, not production | ✅ | Deployed in BCD UAT (`bcd_api_uat.databricks_demo`, own Lakebase); stream, micro-batch comparison, 100/s test, batch lane from their Kinesis all run there. App pending Git credential |
-| 25 | Denis to send a real rule example | ❌ (theirs) | Ask in the demo; Rule Studio can take it live |
+| 25 | Their architect to send a real rule example | ❌ (theirs) | Ask in the demo; Rule Studio can take it live |
 | 26 | EPAM's job design (one shared cluster, manual runs, redeploys) | 🟡 | Talk track: separate ingest from consumers; run ingest continuously |
 | 27 | EPAM detection logic (HK → TK/UN/HX vs HX/UN → HK/KK/TK) | 🟡 | Ours follows the given definition; ask which is intended (in runbook) |
 
-**Remaining gaps before Thursday:** cost numbers (#3) and sending the follow-up links (#23). Per-consumer rule sets (#12/#13) and a real Lambda call (#16) are larger and better
+**Remaining gaps before Thursday:** sending the follow-up links (#23), and live Kinesis records in the real-time lane
+(#6, needs EFO or test publishes). Per-consumer rule sets (#12/#13) and a real Lambda call (#16) are larger and better
 positioned as "next step with your team".
 
 ## Demo flow (55 min) — see `DEMO_RUNBOOK.md` for commands
 
 1. **The problem in their words (3 min)** — "200 versions, 5 matter, and you need them now, not in an hour."
-2. **Real-time vs batch (7 min)** — Ops Console KPIs; point at "0 s ago" vs "N min ago".
+2. **Real-time vs batch (7 min)** — Ops Console tiers ("0 s ago" vs "N min ago"), then the measured comparison:
+   same job, Real-Time Mode ≈0.19 s vs micro-batch ≈1 s. Ask: which consumers truly need sub-second?
 3. **One booking's story (10 min)** — click a SCHEDULE_CHANGE trip; walk the timeline; "this is your Lambda".
-4. **Rules (15 min)** — ask Denis for a rule; type it; preview; approve; watch hits climb.
+4. **Rules (15 min)** — ask their architect for a rule; type it; preview; approve; watch hits climb (allow ~20 s for
+   the first hit; it waits for a matching version).
 5. **Actions (8 min)** — Traveler card → Accept; show the EventBridge message.
-6. **Cost + architecture (7 min)** — classic for RTM only, serverless elsewhere; cost table.
+6. **Cost + architecture (7 min)** — classic for RTM only, serverless elsewhere; cost table from UAT billing; Kinesis
+   needs EFO (or Runtime 19 polling) and 4 shards fill one node.
 7. **Batch + Genie (5 min)** — show the pipeline graph (bronze → silver → gold, DQ metrics), then ask Genie
    "What share of booking versions today were significant vs noise?"

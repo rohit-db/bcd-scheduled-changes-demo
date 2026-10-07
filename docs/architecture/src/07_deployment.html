@@ -39,13 +39,13 @@
   <div class="ws uat">
     <span class="target">-t uat</span><h2>BCD UAT workspace</h2>
     <div class="meta">bcd-api-uat · AWS us-east-1 · schema <code>bcd_api_uat.databricks_demo</code> (separate from EPAM's tables)</div>
-    <div class="row"><span class="what">RTM stream<span class="c classic">classic</span></span><span class="det">validated: p50 186 ms · p95 228 ms at 15/s</span><span class="st off">stopped</span></div>
+    <div class="row"><span class="what">RTM stream<span class="c classic">classic</span></span><span class="det">DBR 18.2: p50 185 ms at 15/s · 73 ms at 100/s; micro-batch comparison ≈1 s</span><span class="st off">stopped</span></div>
     <div class="row"><span class="what">Lakebase</span><span class="det">databricks-trip-intel · same schema</span><span class="st ok">running</span></div>
     <div class="row"><span class="what">Dispatcher<span class="c sl">serverless</span></span><span class="det">deployed, simulated mode</span><span class="st ok">deployed</span></div>
     <div class="row"><span class="what">Batch pipeline<span class="c sl">serverless</span></span><span class="det">10,800 versions, 113 schedule changes</span><span class="st ok">validated</span></div>
     <div class="row"><span class="what">App</span><span class="det">deploys from private Git repo bcd-trip-intel-app (app code only)</span><span class="st todo">needs Git credential</span></div>
     <div class="row"><span class="what">Genie space</span><span class="det">not created yet</span><span class="st todo">to do</span></div>
-    <div class="row"><span class="what">Source</span><span class="det">Kinesis uat01-HermesTripsDS → bronze (read-only): 12 real versions, all parsed; RTM from Kinesis not yet run</span><span class="st ok">batch: live</span></div>
+    <div class="row"><span class="what">Source</span><span class="det">Kinesis uat01-HermesTripsDS, read-only. Batch: 12 real versions parsed. Real-time: 4 shards connected on DBR 19 polling; DBR 18.2 needs EFO</span><span class="st ok">connected</span></div>
   </div>
 </div>
 <div class="note">Real-Time Mode is the only classic compute: standalone RTM writing to a custom sink (Lakebase) needs a dedicated cluster.
