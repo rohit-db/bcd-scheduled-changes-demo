@@ -10,8 +10,12 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest",
-    "databricks-dlt",
-    "databricks-connect>=15.4,<15.5",
+    "pyspark",
+    "fastapi",
+    "httpx",
+    "uvicorn",
+    "psycopg-pool>=3.2",
+    "databricks-sdk",
 ]
 
 [build-system]

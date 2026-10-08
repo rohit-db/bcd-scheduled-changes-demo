@@ -1,6 +1,6 @@
 -- BRONZE: every raw booking (PNR) version exactly as received — one row per version, untouched.
--- One table, fed by append flows: landed files (synthetic demo data) here, and BCD's Kinesis stream
--- (bronze_from_kinesis.py, only when the pipeline is configured with a stream). `source` says which.
+-- Fed by an append flow from landed files (synthetic demo data); `source` records where each row came from.
+-- The uat target doesn't use this lane: it builds silver/gold from Lakebase's change data feed instead.
 CREATE OR REFRESH STREAMING TABLE bronze_pnr_versions
 COMMENT 'Raw BCD trip/PNR versions as received (one JSON payload per row), from every source.';
 

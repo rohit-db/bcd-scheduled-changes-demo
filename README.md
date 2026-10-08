@@ -185,13 +185,13 @@ src/
   batch_lane/transformations/       # earlier analytical pipeline from landed files (e2demo fallback) + landing job
   dispatcher/                       # outbox → EventBridge
   app/                              # Databricks App (FastAPI + static UI)
+  notebooks/rtm_live_demo.py        # Real-Time Mode live in a notebook: display(), no sink (uat)
   app.yaml, requirements.txt        # app config (all settings via secrets/resources)
 sql/                                # Lakebase schema + seed rules; UC views over Lakebase
 genie/                              # Genie space definition
 scripts/                            # Lakebase setup, SQL runner, app repo publish, diagram rendering
 docs/                               # guide, runbook, architecture diagrams, video script, design spec + plan
 tests/                              # unit tests
-databricks.yml, resources/, src/scheduled_changes_etl/, src/generate_data/   # legacy primer (below)
 ```
 
 ## Known limitations and open questions
@@ -224,11 +224,8 @@ databricks.yml, resources/, src/scheduled_changes_etl/, src/generate_data/   # l
 
 ## Legacy: Lakeflow primer pipeline
 
-The root `databricks.yml`, `resources/`, `src/scheduled_changes_etl/` and `src/generate_data/` are the earlier
-Lakeflow Declarative Pipelines primer. It ran BCD's original PySpark scheduled-change notebook as a serverless
-pipeline (bronze → silver → gold, in SQL and in Python with identical output), and fixed a filter bug in that notebook:
-Python `or` on Column objects silently dropped `UN`/`KK`/`TK`, fixed with `.isin(...)`. It deploys separately:
-```bash
-databricks bundle deploy -p <profile>        # from the repo root
-databricks bundle run scheduled_changes_job -p <profile>
-```
+The earlier Lakeflow Declarative Pipelines primer has been removed from the branch; its code is kept at git tag
+`legacy-ldp-primer` (`git checkout legacy-ldp-primer -- databricks.yml resources src/scheduled_changes_etl
+src/generate_data` to restore it). It ran BCD's original PySpark scheduled-change notebook as a serverless pipeline
+(bronze → silver → gold, in SQL and in Python with identical output), and fixed a filter bug in that notebook:
+Python `or` on Column objects silently dropped `UN`/`KK`/`TK`, fixed with `.isin(...)`.

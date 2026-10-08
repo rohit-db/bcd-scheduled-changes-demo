@@ -206,12 +206,6 @@ def disable_rule(rule_id: str):
     return {"rule_id": rule_id, "status": "disabled"}
 
 
-@app.get("/api/rules/{rule_id}/hits")
-def rule_hits(rule_id: str):
-    return db.query("SELECT trip_id, version, matched_ts FROM rule_hits WHERE rule_id = %s ORDER BY id DESC LIMIT 20",
-                    (rule_id,))
-
-
 @app.get("/api/traveler/notifications")
 def notifications(limit: int = 20):
     return db.query("""SELECT o.id, o.trip_id, o.version, o.payload, o.status, o.created_ts, r.response

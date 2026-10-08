@@ -23,14 +23,6 @@ variables:
     default: /Volumes/${var.catalog}/${var.schema}/trip_intel_checkpoints
   landing_path:
     default: /Volumes/${var.catalog}/${var.schema}/trip_intel_landing/pnr_versions
-  kinesis_stream:
-    description: Kinesis stream the bronze table also reads; empty = landed files only
-    default: ""
-  kinesis_region:
-    default: us-east-1
-  kinesis_credential:
-    description: UC service credential for Kinesis (read-only)
-    default: kinesis_reader_cred_uat
 
 targets:
   e2demo:
@@ -59,9 +51,6 @@ targets:
                 include: ../../src/batch_lane/transformations/**
           configuration:
             landing_path: ${var.landing_path}
-            kinesis_stream: ${var.kinesis_stream}
-            kinesis_region: ${var.kinesis_region}
-            kinesis_credential: ${var.kinesis_credential}
 
       jobs:
         # Batch lane orchestration: land the next slice of versions, then refresh the Lakeflow pipeline.

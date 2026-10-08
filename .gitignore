@@ -8,3 +8,5 @@ build/
 .superpowers/
 docs/video/_demowork/
 docs/video/*.mp4
+.isaac/
+.vscode/
