@@ -121,7 +121,7 @@ To rerun the peak test: cancel the RTM run, then
 
 | Thing (UAT) | Where |
 |---|---|
-| App | https://databricks-bcd-trip-intel-7474657914890252.aws.databricksapps.com (deployed from private repo `rohit-db/bcd-trip-intel-app`, commit `78a43d8`) |
+| App | https://databricks-bcd-trip-intel-7474657914890252.aws.databricksapps.com (deployed from private repo `rohit-db/bcd-trip-intel-app`, commit `9368fee`) |
 | RTM job | `[dev rohit_bhagwat] trip_intel_rtm` (job 141818085214296) |
 | Batch job / dispatcher | jobs 608337505977714 / 196400368671395 |
 | Lakebase | instance `databricks-trip-intel`; registered in UC as `databricks_demo_trip_intel_ops` |
