@@ -130,6 +130,7 @@ To rerun the peak test: cancel the RTM run, then
 | Tables | `bcd_api_uat.databricks_demo.*`: `lb_*_history`, `silver_change_events`, `silver_pnr_segments`, `gold_version_changes`, `gold_daily_change_summary`, `rt_rule_hits` / `rt_actions` views. (`bronze_pnr_versions` / `silver_pnr_versions` are left from the earlier lane, incl. 12 real Kinesis records.) |
 | Genie space | "BCD Trip Changes" — `01f1c30ff44310c6b475edd6a2e6c34c` (definition: `genie/bcd_trip_changes_uat.json`) |
 | Warehouse | `databricks-bcd-trip-intel-wh` (`aa7bedb597c55ceb`) |
+| RTM live notebook | `.bundle/bcd_trip_intel_rtm/uat/files/src/notebooks/rtm_live_demo` (https://dbc-24f136f2-50df.cloud.databricks.com/?o=7474657914890252#notebook/3754832766807209), cluster `[dev rohit_bhagwat] rtm-live-notebook` (`1008-152556-uxdnbhg0`, auto-terminates after 30 idle min). Real-Time Mode with `display()`, no sink; explicit checkpoints required in this workspace |
 
 - Start stream: `databricks bundle run trip_intel_rtm --no-wait -t uat` (defaults: checkpoint `rtm_demo_20261008`,
   `--seq-offset 2400000`, i.e. trips from T0200000). To start completely fresh later, use a new checkpoint and a higher
