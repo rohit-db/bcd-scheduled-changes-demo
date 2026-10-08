@@ -114,12 +114,23 @@ To rerun the peak test: cancel the RTM run, then
 - Who owns the EventBridge bus / IAM role for a UAT test?
 
 ## UAT (BCD's workspace) — T-60 if demoing there
+
+| Thing (UAT) | Where |
+|---|---|
+| App | https://databricks-bcd-trip-intel-7474657914890252.aws.databricksapps.com (deployed from private repo `rohit-db/bcd-trip-intel-app`, commit `78a43d8`) |
+| RTM job | `[dev rohit_bhagwat] trip_intel_rtm` (job 141818085214296) |
+| Batch job / dispatcher | jobs 608337505977714 / 196400368671395 |
+| Lakebase | instance `databricks-trip-intel`; registered in UC as `databricks_demo_trip_intel_ops` |
+| Tables | `bcd_api_uat.databricks_demo.*` (bronze/silver/gold, `rt_rule_hits`, `rt_actions` views) |
+| Genie space | "BCD Trip Changes" — `01f1c30ff44310c6b475edd6a2e6c34c` (definition: `genie/bcd_trip_changes_uat.json`) |
+| Warehouse | `databricks-bcd-trip-intel-wh` (`aa7bedb597c55ceb`) |
+
 - Start stream: `databricks jobs run-now` on `[dev rohit_bhagwat] trip_intel_rtm` (job 141818085214296) with
   `--seq-offset` above the last run (trips so far reach T0104xxx → use `--seq-offset 1800000`) and a new `--checkpoint`.
   Reusing an offset writes nothing: the idempotent sink skips trips it has already seen.
 - Run the batch job once (job 608337505977714) so the analytical tier shows minutes, not a day.
 - Start the dispatcher (job 196400368671395) if showing EventBridge entries.
-- App: deployed from private repo `rohit-db/bcd-trip-intel-app` once the app's Git credential is set; until then use a
+- App: already deployed and running from Git; open the URL above and log in once before the call. Fallback: a
   local app on UAT data (port 8766).
 - Rule Studio: disable rehearsal rules ("Traveler email changed").
 - Stop everything after the demo (nothing should run overnight on BCD's bill).

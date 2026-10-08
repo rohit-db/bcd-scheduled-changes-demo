@@ -96,6 +96,13 @@ targets:
       secret_scope: databricks-trip-intel
       app_name: databricks-bcd-trip-intel
       kinesis_stream: uat01-HermesTripsDS   # bronze also reads BCD's real feed (read-only)
+    resources:
+      # Stream decisions queryable from SQL/Genie (see sql/uc_realtime_views.sql). The app itself is deployed from Git.
+      database_catalogs:
+        trip_intel_ops:
+          name: databricks_demo_trip_intel_ops
+          database_instance_name: databricks-trip-intel
+          database_name: databricks_postgres
 
 resources:
   volumes:
