@@ -50,8 +50,12 @@ Commands in the next section run from `bundles/trip_intel` with `--profile e2-de
    (PutEvents shape, `idempotency_key`). "The dispatcher calls EventBridge through a UC service credential —
    you already use one for Kinesis. Here it runs in SIMULATED mode because this workspace has no AWS bus."
 5. **Cost (5 min)** — table below. Per use case, not one winner.
-6. **Batch pipeline + Genie (5 min)** — open the pipeline graph (bronze → silver → gold, DQ expectation metrics),
-   then Genie: "What share of booking versions today were significant vs noise?" (answered 14.6% / 85.4% on 2026-10-05).
+6. **Analytical lane + Genie (5 min)** — show the job first, then the pipeline (per Uday): Catalog Explorer →
+   `lb_change_events_history` ("Lakebase's change data feed: every decision the stream made, in Delta, seconds
+   behind"), then the pipeline graph (`silver_change_events` → `silver_pnr_segments` / `gold_version_changes` →
+   `gold_daily_change_summary`, DQ expectations: 932,618 passed / 0 dropped on 2026-10-08). "We read your feed once."
+   Mention: real-time mode inside Lakeflow pipelines is in preview; with a Lakebase sink the real-time job can move
+   into the pipeline. Then Genie: "What share of booking versions today were significant vs noise?" (14.59% / 85.41%).
 
 ## Cost
 Fill Thursday morning from `system.billing.usage` (needs ≥1 h of runtime; billing lags a few hours):
@@ -121,14 +125,17 @@ To rerun the peak test: cancel the RTM run, then
 | RTM job | `[dev rohit_bhagwat] trip_intel_rtm` (job 141818085214296) |
 | Batch job / dispatcher | jobs 608337505977714 / 196400368671395 |
 | Lakebase | instance `databricks-trip-intel`; registered in UC as `databricks_demo_trip_intel_ops` |
-| Tables | `bcd_api_uat.databricks_demo.*` (bronze/silver/gold, `rt_rule_hits`, `rt_actions` views) |
+| Change data feed | Lakebase CDF config `public` (Postgres `public` → `bcd_api_uat.databricks_demo`), tables `lb_<table>_history`; all six source tables have `REPLICA IDENTITY FULL` |
+| Analytical pipeline | `[dev rohit_bhagwat] trip_intel_batch_pipeline` (`c7d5cc27-d8c0-4309-b35d-e18054d22bb1`), code `src/batch_lane/from_lakebase_cdf/` |
+| Tables | `bcd_api_uat.databricks_demo.*`: `lb_*_history`, `silver_change_events`, `silver_pnr_segments`, `gold_version_changes`, `gold_daily_change_summary`, `rt_rule_hits` / `rt_actions` views. (`bronze_pnr_versions` / `silver_pnr_versions` are left from the earlier lane, incl. 12 real Kinesis records.) |
 | Genie space | "BCD Trip Changes" — `01f1c30ff44310c6b475edd6a2e6c34c` (definition: `genie/bcd_trip_changes_uat.json`) |
 | Warehouse | `databricks-bcd-trip-intel-wh` (`aa7bedb597c55ceb`) |
 
-- Start stream: `databricks jobs run-now` on `[dev rohit_bhagwat] trip_intel_rtm` (job 141818085214296) with
-  `--seq-offset` above the last run (trips so far reach T0104xxx → use `--seq-offset 1800000`) and a new `--checkpoint`.
-  Reusing an offset writes nothing: the idempotent sink skips trips it has already seen.
-- Run the batch job once (job 608337505977714) so the analytical tier shows minutes, not a day.
+- Start stream: `databricks bundle run trip_intel_rtm --no-wait -t uat` (defaults: checkpoint `rtm_demo_20261008`,
+  `--seq-offset 2400000`, i.e. trips from T0200000). To start completely fresh later, use a new checkpoint and a higher
+  offset: reusing an offset writes nothing, because the idempotent sink skips trips it has already seen.
+- Refresh the analytical lane once (`databricks bundle run trip_intel_batch -t uat`; it only refreshes the pipeline
+  from the change feed, ~1 min) so the analytical tier shows minutes, not a day.
 - Start the dispatcher (job 196400368671395) if showing EventBridge entries.
 - App: already deployed and running from Git; open the URL above and log in once before the call. Fallback: a
   local app on UAT data (port 8766).

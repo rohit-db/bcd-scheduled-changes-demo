@@ -8,7 +8,7 @@ Sources are in `src/` (Mermaid `.mmd`, or fixed-size `.html` for the two hand-la
 | 1 | [Reference architecture](#1-reference-architecture) | "What did you build, end to end?" |
 | 2 | [One booking version, event → screen](#2-one-booking-version-event--screen) | "Where do the 200 ms go?" |
 | 3 | [Inside the stateful step](#3-inside-the-stateful-step) | "How does this replace our Lambda track-changes service?" |
-| 4 | [Batch lane](#4-batch-lane-bronze--silver--gold) | "Is there a pipeline I can see? What about data quality?" |
+| 4 | [Analytical lane](#4-analytical-lane-lakebase-change-data-feed--silver--gold) | "Is there a pipeline I can see? What about data quality?" |
 | 5 | [Rule lifecycle](#5-rule-lifecycle-english--live-in-5-seconds) | "Can business analysts write rules?" |
 | 6 | [Actions to AWS](#6-actions-to-aws-outbox--eventbridge) | "Can it publish to EventBridge? What about duplicates?" |
 | 7 | [Where it runs](#7-where-it-runs) | "Is this in our environment?" |
@@ -18,11 +18,12 @@ Sources are in `src/` (Mermaid `.mmd`, or fixed-size `.html` for the two hand-la
 ## 1. Reference architecture
 ![Reference architecture](png/01_overview.png)
 
-One Kinesis feed feeds two lanes. The **real-time lane** is a Spark Structured Streaming job in Real-Time Mode on a
+The booking feed is read once. The **real-time lane** is a Spark Structured Streaming job in Real-Time Mode on a
 single classic node. It compares each booking version to the previous one, tags what changed, evaluates rules and
 writes results to Lakebase in about 0.2 s. The app, the dispatcher (outbox → EventBridge) and analysts' rules all
-work against Lakebase. The **batch lane** is a serverless Lakeflow pipeline (bronze → silver → gold) that runs hourly
-and serves Genie. Gold calls the same `trip_intel` diff library as the stream.
+work against Lakebase. The **analytical lane** starts from Lakebase's change data feed, which copies every row change
+to Delta history tables within seconds; a serverless Lakeflow pipeline builds silver and gold from that and serves
+Genie. Nothing re-reads the feed or re-runs the diff.
 Lakebase is registered in Unity Catalog, so Genie and SQL can query the stream's decisions (rule hits, actions)
 next to gold, through the views in `sql/uc_realtime_views.sql`.
 
@@ -39,8 +40,11 @@ p50 about 0.2–0.3 s. All of a version's writes go to Lakebase in one pipelined
 right before it. None are skipped, unlike a latest-only MERGE. Bad records are logged and skipped. Duplicate
 or out-of-order versions are tagged stale. Every write is idempotent, so a restart replays safely.
 
-## 4. Batch lane: bronze → silver → gold
-![Batch lane](svg/04_batch_lane.svg)
+## 4. Analytical lane: Lakebase change data feed → silver → gold
+![Analytical lane](svg/04_batch_lane.svg)
+
+In BCD UAT. The demo workspace keeps the earlier lane (landed files → bronze → silver → gold, re-diffed in batch
+with the shared library) as a fallback.
 
 ## 5. Rule lifecycle: English → live in ~5 seconds
 ![Rule lifecycle](svg/05_rule_lifecycle.svg)
@@ -57,10 +61,10 @@ workspace the dispatcher runs in SIMULATED mode: it builds and stores the exact 
 ## 8. Target state: ingest once, many consumers
 ![Target state](svg/08_target_state.svg)
 
-Separate compute per latency tier; shared data and logic. Real-Time Mode reads the source directly (it can't read
-Delta), and a streaming table lands every raw version in bronze once. In UAT the bronze table already does this: an
-append flow reads `uat01-HermesTripsDS` read-only, alongside the synthetic landed files. Batch consumers (finance, profiles, EPAM's pipelines, Genie) read bronze instead of each re-reading
-Kinesis.
+Separate compute per latency tier; one read of the feed, one copy of the logic. Real-Time Mode reads the source
+directly (it can't read Delta) and decides once. Lakebase's change data feed lands every decision in Delta, and
+batch consumers (finance, profiles, EPAM's pipelines, Genie) read those history tables instead of each re-reading
+Kinesis. In UAT this runs today.
 
 ## 9. Lakebase data model
 ![Lakebase ERD](svg/09_lakebase_erd.svg)

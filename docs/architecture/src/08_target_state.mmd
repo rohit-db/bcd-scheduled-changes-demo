@@ -7,9 +7,8 @@ flowchart LR
 
   K[("Kinesis<br/>HermesTripsDS")]:::aws
 
-  subgraph ING["Ingest once"]
-    RTM["Real-Time Mode stream<br/>always on · ms"]:::rt
-    BZ["bronze_pnr_versions<br/>Delta · every raw version<br/>replayable, auditable"]:::bronze
+  subgraph ING["Read the feed once"]
+    RTM["Real-Time Mode stream<br/>always on · ms<br/>decides once"]:::rt
   end
 
   subgraph MS["Real-time consumers"]
@@ -17,7 +16,9 @@ flowchart LR
     EB["EventBridge → Lambdas,<br/>notifications, seat service"]:::aws
   end
 
-  subgraph BATCH["Batch consumers"]
+  CDF["Lakebase change data feed<br/>Delta history tables<br/>replayable, auditable"]:::bronze
+
+  subgraph BATCH["Analytical consumers · serverless"]
     C1["Finance: payment changes"]:::cons
     C2["Profiles: contact changes"]:::cons
     C3["EPAM pipelines / reporting"]:::cons
@@ -25,9 +26,9 @@ flowchart LR
   end
 
   K --> RTM
-  K -->|"streaming table"| BZ
   RTM --> LB --> EB
-  BZ --> C1
-  BZ --> C2
-  BZ --> C3
-  BZ --> C4
+  LB -->|"seconds"| CDF
+  CDF --> C1
+  CDF --> C2
+  CDF --> C3
+  CDF --> C4

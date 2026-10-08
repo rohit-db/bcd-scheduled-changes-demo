@@ -57,6 +57,18 @@
         "identifier": "bcd_api_uat.databricks_demo.gold_version_changes",
         "column_configs": [
           {
+            "column_name": "event_ts",
+            "description": [
+              "When the booking version happened. Use date(event_ts) for 'today', 'per day' or any date filter."
+            ]
+          },
+          {
+            "column_name": "ingested_at",
+            "description": [
+              "When the analytical pipeline processed the row (not when the booking changed). Don't use it for date filters."
+            ]
+          },
+          {
             "column_name": "is_significant",
             "description": [
               "True when the version changed something that matters (anything other than NO_SIGNIFICANT_CHANGE / STALE_VERSION). Use this to count significant vs noise versions."
@@ -137,7 +149,7 @@
           "What share of booking versions were significant vs noise?"
         ],
         "sql": [
-          "SELECT date(gold_version_changes.ingested_at) AS day, count(*) AS versions, sum(CASE WHEN gold_version_changes.is_significant THEN 1 ELSE 0 END) AS significant, round(100.0 * sum(CASE WHEN gold_version_changes.is_significant THEN 1 ELSE 0 END) / count(*), 1) AS significant_pct FROM bcd_api_uat.databricks_demo.gold_version_changes GROUP BY 1 ORDER BY 1 DESC"
+          "SELECT date(gold_version_changes.event_ts) AS day, count(*) AS versions, sum(CASE WHEN gold_version_changes.is_significant THEN 1 ELSE 0 END) AS significant, round(100.0 * sum(CASE WHEN gold_version_changes.is_significant THEN 1 ELSE 0 END) / count(*), 1) AS significant_pct FROM bcd_api_uat.databricks_demo.gold_version_changes GROUP BY 1 ORDER BY 1 DESC"
         ]
       },
       {

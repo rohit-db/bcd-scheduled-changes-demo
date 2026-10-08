@@ -31,7 +31,7 @@
   .lbl { font-size: 12px; fill: #33404d; font-weight: 600; stroke: #fff; stroke-width: 5px; paint-order: stroke; stroke-linejoin: round; }
 </style></head><body>
 <h1>BCD Trip Intelligence: reference architecture</h1>
-<div class="lede">One booking feed, two lanes: milliseconds for operations, hourly for analytics. Same change-detection code in both.</div>
+<div class="lede">Read the booking feed once and decide once: milliseconds for operations, and Lakebase's change data feed for analytics.</div>
 
 <!-- left: BCD AWS source -->
 <div class="panel aws" style="left:30px;top:110px;width:210px;height:780px"><div class="t">BCD AWS</div></div>
@@ -56,19 +56,19 @@
 <div class="box" style="left:905px;top:395px;width:200px;height:75px;border-color:#ff3621">
   <b>Dispatcher</b><div class="s">drains outbox every 0.5 s</div></div>
 
-<div class="band bt" style="left:300px;top:515px;width:1020px;height:255px"><div class="t">Batch lane <span>hourly · serverless · Lakeflow Declarative Pipeline</span></div></div>
+<div class="band bt" style="left:300px;top:515px;width:1020px;height:255px"><div class="t">Analytical lane <span>serverless Lakeflow pipeline · no second ingest</span></div></div>
 <div class="box" style="left:320px;top:575px;width:150px;height:120px;border-color:#c2610f">
-  <b>Landing volume</b><div class="s">raw JSON files<br>Unity Catalog volume</div></div>
+  <b>Change data feed</b><div class="s">lb_*_history (Delta)<br>every row change, seconds</div></div>
 <div class="box" style="left:505px;top:575px;width:170px;height:120px;border-color:#8c5a2b">
-  <b><span class="medal" style="background:#b87333"></span>Bronze</b><div class="s">every raw version kept<br>Auto Loader</div></div>
+  <b><span class="medal" style="background:#a8b2bd"></span>Silver</b><div class="s">silver_change_events<br>data-quality expectations</div></div>
 <div class="box" style="left:710px;top:575px;width:170px;height:120px;border-color:#66768a">
-  <b><span class="medal" style="background:#a8b2bd"></span>Silver</b><div class="s">parsed + flattened segments<br>data-quality expectations</div></div>
+  <b><span class="medal" style="background:#a8b2bd"></span>Segments</b><div class="s">silver_pnr_segments<br>one row per segment</div></div>
 <div class="box" style="left:915px;top:575px;width:180px;height:120px;border-color:#b8860b">
-  <b><span class="medal" style="background:#e0b100"></span>Gold</b><div class="s">every version vs previous<br>daily change summary</div></div>
+  <b><span class="medal" style="background:#e0b100"></span>Gold</b><div class="s">every version + its tags<br>daily change summary</div></div>
 <div class="box" style="left:1130px;top:575px;width:170px;height:120px;border-color:#1f8a4c">
   <b>Genie</b><div class="s">analysts ask in English:<br>"what share was noise?"</div></div>
 <div class="abs" style="left:320px;top:715px;width:980px;font-size:12.5px;color:#9a4d0b">
-  ⟲ Gold runs the <b>same trip_intel diff library</b> as the real-time stream. Bronze has one append flow per source (landed files, Kinesis), tagged by <code>source</code>.</div>
+  ⟲ The feed is <b>read once</b> and the diff runs <b>once</b>, in the stream. Gold uses the stream's tags, so operations and analytics can't disagree.</div>
 
 <div class="uc" style="left:300px;top:790px;width:1020px;height:80px">
   <b>Unity Catalog</b>tables · volumes · Lakebase · service credentials for Kinesis and EventBridge · lineage · access control
@@ -103,7 +103,6 @@
   </defs>
   <g fill="none" stroke="#33404d" stroke-width="2">
     <path d="M220 360 C 270 360, 270 285, 318 285" stroke="#ff3621" stroke-width="2.5" marker-end="url(#ar)"/>
-    <path d="M220 410 C 270 410, 270 635, 318 635" marker-end="url(#a)"/>
     <path d="M530 270 L 598 270" stroke="#ff3621" stroke-width="2.5" marker-end="url(#ar)"/>
     <path d="M598 420 L 440 420 L 440 372" stroke-dasharray="6 4" marker-end="url(#a)"/>
     <path d="M842 260 L 903 260" marker-start="url(#a)" marker-end="url(#a)"/>
@@ -115,13 +114,14 @@
     <path d="M677 635 L 708 635" marker-end="url(#a)"/>
     <path d="M882 635 L 913 635" marker-end="url(#a)"/>
     <path d="M1097 635 L 1128 635" marker-end="url(#a)"/>
+    <path d="M640 467 L 640 558 L 395 558 L 395 573" stroke="#2272b4" stroke-width="2.5" marker-end="url(#a)"/>
     <path d="M800 467 L 800 503 L 1215 503 L 1215 573" stroke="#2272b4" stroke-dasharray="6 4" marker-end="url(#a)"/>
   </g>
   <text class="lbl" x="236" y="318">every version</text>
-  <text class="lbl" x="246" y="520">same feed</text>
   <text class="lbl" x="537" y="262">writes</text>
   <text class="lbl" x="452" y="412">rules hot-reload ≤5 s</text>
   <text class="lbl" x="1190" y="420">PutEvents · UC credential</text>
-  <text class="lbl" x="860" y="499" style="fill:#164a78">stream decisions, queryable via Unity Catalog</text>
+  <text class="lbl" x="860" y="499" style="fill:#164a78">live decisions, queryable via Unity Catalog</text>
+  <text class="lbl" x="478" y="496" style="fill:#164a78">change data feed · seconds</text>
 </svg>
 </body></html>

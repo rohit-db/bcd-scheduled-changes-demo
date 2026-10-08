@@ -1,26 +1,25 @@
 flowchart LR
-  classDef src fill:#fff4e5,stroke:#ff9900,color:#232f3e
+  classDef rt fill:#ffe9e5,stroke:#ff3621,color:#11171c
+  classDef store fill:#e8f1fa,stroke:#2272b4,color:#11171c
   classDef bronze fill:#f3e3d3,stroke:#8c5a2b,color:#11171c
   classDef silver fill:#eef1f5,stroke:#66768a,color:#11171c
   classDef gold fill:#fff3c4,stroke:#b8860b,color:#11171c
   classDef app fill:#e6f5ec,stroke:#1f8a4c,color:#11171c
-  classDef lib fill:#ffe9e5,stroke:#ff3621,color:#11171c
 
-  SRC["PNR versions<br/>(prod: Kinesis → files / direct<br/>demo: land_versions.py, 10,800 per run)"]:::src
-  LAND[("UC Volume<br/>trip_intel_landing<br/>JSONL")]:::src
-  BR["<b>bronze_pnr_versions</b><br/>streaming table · Auto Loader<br/>raw text, every version kept"]:::bronze
-  SV["<b>silver_pnr_versions</b><br/>parsed · typed<br/>DQ: valid_trip_id DROP<br/>valid_version DROP · has_segments WARN"]:::silver
+  RTM["Real-Time Mode stream<br/>the only reader of the feed<br/>diff · tags · rules, decided once"]:::rt
+  LB[("Lakebase<br/>change_events · rule_hits<br/>action_outbox · …")]:::store
+  CDF["<b>lb_change_events_history</b><br/>Lakebase change data feed<br/>every row change → Delta, seconds behind<br/>(+ lb_rule_hits_history, lb_action_outbox_history, …)"]:::bronze
+  SV["<b>silver_change_events</b><br/>streaming table · tags parsed, snapshot typed<br/>DQ: valid_trip_id DROP · valid_version DROP<br/>has_segments WARN"]:::silver
   SG["<b>silver_pnr_segments</b><br/>one row per segment"]:::silver
-  GV["<b>gold_version_changes</b><br/>every version vs previous<br/>tags + schedule changes"]:::gold
+  GV["<b>gold_version_changes</b><br/>every version with its change tags<br/>significant? · schedule changes · route"]:::gold
   GD["<b>gold_daily_change_summary</b><br/>per day / tag / carrier"]:::gold
-  LIB["trip_intel library<br/>same diff code as the real-time lane"]:::lib
   GENIE["Genie<br/>“what share of versions were noise?”"]:::app
-  DASH["Dashboards / SQL / ML"]:::app
+  DASH["Dashboards / SQL / ML<br/>finance · profiles · EPAM pipelines"]:::app
 
-  SRC --> LAND --> BR --> SV --> SG
+  RTM -->|"~0.2 s"| LB -->|"WAL → Delta"| CDF --> SV --> SG
   SV --> GV --> GD
-  LIB -.->|"applyInPandas per trip"| GV
   GV --> GENIE
   GD --> GENIE
   SG --> DASH
   GD --> DASH
+  CDF --> DASH

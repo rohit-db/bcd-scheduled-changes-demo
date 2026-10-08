@@ -6,12 +6,15 @@ most of them meaningless re-saves. This repo shows BCD's change-tracking process
 - **Real-time lane:** every booking version is compared to the previous one in ~0.2 s (Spark Structured Streaming
   **Real-Time Mode**). It's tagged with what changed, run through business rules analysts write in plain English,
   and turned into actions (alert ops, notify the traveler, call a service, publish to AWS EventBridge).
-- **Batch lane:** a serverless Lakeflow pipeline keeps every raw version (bronze), parses and checks it (silver),
-  and runs the **same change-detection code** in batch (gold) for reporting and Genie.
+- **Analytical lane, ingest once:** Lakebase's change data feed lands everything the stream wrote in Delta within
+  seconds (`lb_*_history`). A serverless Lakeflow pipeline builds silver (data-quality checks, flattened segments) and
+  gold (per-version changes, daily summary) from that copy for reporting and Genie. The feed is read once, and the
+  diff runs once.
 - **A Databricks App** with three screens: Live Ops Console, Rule Studio, and a traveler notification view.
 
 Everything deploys from one Databricks Asset Bundle. It has been validated in a Databricks demo workspace and in
-**BCD's UAT workspace**, including reads from BCD's real Kinesis stream (read-only).
+**BCD's UAT workspace**, including reads from BCD's real Kinesis stream (read-only). The demo workspace keeps the
+earlier analytical lane (landed files → bronze → silver → gold, re-diffed in batch) as a fallback.
 
 ![Reference architecture](docs/architecture/png/01_overview.png)
 
@@ -36,7 +39,8 @@ Everything deploys from one Databricks Asset Bundle. It has been validated in a 
 | Real-time stream | Reads each version (Kinesis, or a synthetic generator), keeps the previous version per trip in state, applies the library, writes results idempotently to the operational store. | Structured Streaming **Real-Time Mode**, `transformWithState`, classic single node | `src/rtm/` |
 | Operational store | Latest trip state, every change, rule hits, rules, action outbox, traveler responses. Lakebase is the demo's choice; Real-Time Mode can also write to Kafka/MSK, or to any database or API through a ForeachWriter. | **Lakebase** (managed Postgres) | `sql/lakebase_schema.sql` |
 | Dispatcher | Drains the outbox and publishes each action to AWS EventBridge (PutEvents through a UC service credential). Without a bus configured it runs in SIMULATED mode and stores the exact entry. | Serverless job | `src/dispatcher/` |
-| Batch pipeline | Bronze (one table, one append flow per source: landed files and BCD's Kinesis) → silver (parsed, data-quality expectations, flattened segments) → gold (every version vs previous, daily summary). | **Lakeflow Declarative Pipeline**, serverless | `src/batch_lane/` |
+| Change data feed | Lakebase tails its write-ahead log and appends every row change to Delta history tables (`lb_change_events_history`, `lb_rule_hits_history`, …) in Unity Catalog, seconds behind. Tables need `REPLICA IDENTITY FULL`. | **Lakebase change data feed** (Beta) | Lakebase UI / `databricks postgres create-cdf-config` |
+| Analytical pipeline | `lb_change_events_history` → `silver_change_events` (data-quality expectations) → `silver_pnr_segments`, `gold_version_changes` → `gold_daily_change_summary`. Uses the stream's tags, so analytics and operations agree by construction. | **Lakeflow Declarative Pipeline**, serverless | `src/batch_lane/from_lakebase_cdf/` (uat); `src/batch_lane/transformations/` (e2demo fallback) |
 | App | Live Ops Console (significant changes as they happen, booking timelines, latency KPIs), Rule Studio (English → JSON Logic with Claude, preview, approve, live in ~5 s), Traveler view (accept or rebook). | **Databricks App** (FastAPI), Foundation Model API | `src/app/` |
 | Analytics on decisions | Lakebase registered in Unity Catalog, plus views, so SQL and Genie can query rule hits and actions next to gold. | Unity Catalog database catalog, Genie | `sql/uc_realtime_views.sql`, `genie/` |
 
@@ -45,9 +49,10 @@ actions, deployment, target state, data model): [`docs/architecture/`](docs/arch
 
 ### One pipeline or two?
 
-The two lanes use separate compute but share the data and the logic. They only need to be separate jobs if some
-consumer needs **sub-second** results. Real-Time Mode can't write Delta, so the raw copy for analytics is its own small
-ingest. If every consumer is fine with seconds, one serverless micro-batch pipeline can do everything. The same job
+The feed is read once, by the real-time stream. Real-Time Mode can't write Delta, so the analytical copy comes from
+Lakebase's change data feed, and the pipeline builds silver and gold from it; there's no second ingest. Only the
+real-time job needs classic compute, and only if some consumer needs **sub-second** results. If every consumer is fine
+with seconds, one serverless micro-batch pipeline can do everything. The same job
 runs either way (`--trigger realtime|processing`); see the measured comparison below and
 [`docs/WHAT_WE_BUILT.md`](docs/WHAT_WE_BUILT.md#do-they-need-two-pipelines).
 
@@ -107,6 +112,8 @@ schema `bcd_api_uat.databricks_demo`, isolated from other teams' tables).
    ```
    Then add `lakebase-host` and `analytics-schema` to the same secret scope, and set `lakebase_host`, `secret_scope`,
    `catalog` and `schema` for the target in `databricks.yml`.
+   For the change-data-feed lane, first run `ALTER TABLE public.<table> REPLICA IDENTITY FULL` on the six tables, then
+   start the feed from the Lakebase UI (Start Lakebase CDF: `databricks_postgres` / `public` → your catalog and schema).
 2. **Bundle.**
    ```bash
    databricks bundle validate -t <target> --profile <profile>
@@ -129,7 +136,7 @@ schema `bcd_api_uat.databricks_demo`, isolated from other teams' tables).
 | Task | Command (from `bundles/trip_intel`) |
 |---|---|
 | Start the real-time stream | `databricks bundle run trip_intel_rtm --no-wait -t <target>` |
-| Run the batch lane once (land versions → refresh pipeline) | `databricks bundle run trip_intel_batch -t <target>` |
+| Refresh the analytical lane once (uat: refresh pipeline from the change feed; e2demo: land versions → refresh) | `databricks bundle run trip_intel_batch -t <target>` |
 | Start the dispatcher | `databricks bundle run trip_intel_dispatcher --no-wait -t <target>` |
 | Override stream parameters | `databricks jobs run-now --json '{"job_id": <id>, "python_params": [...]}'` |
 
@@ -157,7 +164,7 @@ Reset and demo-day steps (T-60 checklist, disabling rehearsal rules, stopping ev
 
 ```bash
 python -m venv .venv && .venv/bin/pip install pytest pyspark fastapi httpx uvicorn "psycopg[binary]" psycopg-pool databricks-sdk
-.venv/bin/python -m pytest -q          # 86 tests, no cluster or database needed
+.venv/bin/python -m pytest -q          # 84 tests, no cluster or database needed
 ```
 
 Run the app locally against a target's Lakebase: set `LAKEBASE_HOST`, `LAKEBASE_PASSWORD`, `WAREHOUSE_ID`,
@@ -174,7 +181,8 @@ bundles/trip_intel/databricks.yml   # the bundle: targets e2demo + uat, jobs, pi
 src/
   trip_intel/                       # shared change-detection library (payload, diff, schedule changes, rules, outbox)
   rtm/                              # Real-Time Mode job: processor, Lakebase sink, latency logging
-  batch_lane/                       # landing job + Lakeflow pipeline (bronze/silver/gold)
+  batch_lane/from_lakebase_cdf/     # analytical pipeline from Lakebase change data feed (uat)
+  batch_lane/transformations/       # earlier analytical pipeline from landed files (e2demo fallback) + landing job
   dispatcher/                       # outbox → EventBridge
   app/                              # Databricks App (FastAPI + static UI)
   app.yaml, requirements.txt        # app config (all settings via secrets/resources)
@@ -193,7 +201,11 @@ databricks.yml, resources/, src/scheduled_changes_etl/, src/generate_data/   # l
   time, which we tag `SEGMENT_MODIFIED`. Confirm with BCD how real data represents a schedule change.
 - **Kinesis in production:** EFO (needs BCD's IAM changes) or Runtime 19 polling (shares read limits with other
   consumers). Check the shard count against task slots.
-- **State never expires.** Trips stay in stream state indefinitely. Add a state TTL before running for months.
+- **State never expires.** Trips stay in stream state indefinitely, and trips can change months apart. Next step:
+  keep the latest trip state in Lakebase (indexed by trip ID) and read-diff-upsert on each version, still in
+  milliseconds, so the stream itself is stateless.
+- **Lakebase change data feed is Beta.** Tables must have `REPLICA IDENTITY FULL` before the feed starts, or they're
+  skipped (a feed created earlier doesn't pick them up later; recreate it).
 - **Generated data is simpler than real PNRs.** The parser handles BCD's UAT records, but real payloads are richer.
 - **EventBridge is simulated** in the demo workspaces (no bus). With a bus and IAM role, the dispatcher sends for real.
 - **Not built:** per-consumer rule sets or subscriptions, a synchronous API/Lambda call, consuming *from* EventBridge.

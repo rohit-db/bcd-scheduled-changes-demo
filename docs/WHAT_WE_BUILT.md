@@ -22,11 +22,14 @@ Diagrams (overview, sequences, pipeline, deployment, target state): [`docs/archi
                                                        │
                                                        └──► 3a. Dispatcher → AWS EventBridge
 
- Same booking feed ──► 3b. Lakeflow pipeline (hourly, serverless): bronze → silver → gold ──► Genie
-                          (raw JSON)   (parsed + DQ)  (same diff logic, daily metrics)
+ Lakebase ──► 3b. change data feed ──► 3c. Lakeflow pipeline (serverless): silver → gold ──► Genie
+              (every row change → Delta   (DQ checks, segments)  (per-version changes,
+               lb_*_history, seconds)                              daily metrics)
 ```
-In production both lanes read the same Kinesis stream. In the demo both use the same generator, and in BCD UAT the
-bronze table also reads their Kinesis stream (read-only), tagged `source = 'kinesis'`.
+**Ingest once:** only the real-time stream reads the booking feed. Everything it decided lands in Lakebase, and
+Lakebase's change data feed copies it to Delta within seconds, so the analytical lane never re-reads the feed or
+re-runs the diff. (The demo workspace keeps the earlier lane, which landed files and re-diffed them in batch, as a
+fallback.)
 
 | # | Piece | What it does, in plain words | Databricks product |
 |---|---|---|---|
@@ -34,8 +37,9 @@ bronze table also reads their Kinesis stream (read-only), tagged `source = 'kine
 | 1 | **Real-time stream** | Reads each version, remembers the previous version of that booking, works out exactly what changed, checks the business rules, and decides actions. ~185 ms from event to decision at 15/s, ~73 ms at 100/s (measured in BCD UAT). The same job can run as a 1 s micro-batch (~1 s) for comparison. | Spark Structured Streaming **Real-Time Mode** on one small classic cluster |
 | 2 | **Operational store** | Where results land so apps can read them instantly: latest booking, every change, rule hits, pending actions. Lakebase is our choice for the demo, not a requirement: the stream can equally publish to Kafka/MSK or write to any database or API (see "Where real-time results can go"). | **Lakebase** (managed Postgres) |
 | 3a | **Dispatcher** | Takes pending actions and sends them to AWS EventBridge (the thing EPAM said was impossible). Runs in "simulated" mode because our demo workspace has no AWS bus — it still builds the exact message. | Serverless job |
-| 3b | **Batch pipeline** | The analytics side, as a pipeline you can see: **bronze** keeps every raw booking version, **silver** parses it with data-quality checks and flattens segments, **gold** runs the *same* diff code as the real-time stream plus daily metrics. Runs hourly. | **Lakeflow Declarative Pipeline** (serverless) + Delta |
-| 3c | **Genie space "BCD Trip Changes"** | Analysts ask questions in English ("which carriers had the most schedule changes today?") over the gold tables, and over the stream's own decisions (rule hits, actions) through Lakebase registered in Unity Catalog. | **Genie** |
+| 3b | **Change data feed** | Lakebase copies every row change in its tables to Delta "history" tables in Unity Catalog, a few seconds behind. This is the raw, replayable copy of everything the stream decided. | **Lakebase change data feed** (Beta) |
+| 3c | **Analytical pipeline** | The analytics side, as a pipeline you can see: **silver** reads the change history with data-quality checks and flattens segments; **gold** has every version with its change tags, plus daily metrics. It uses the stream's own tags, so the two sides can't disagree. Runs hourly (or continuously). | **Lakeflow Declarative Pipeline** (serverless) + Delta |
+| 3d | **Genie space "BCD Trip Changes"** | Analysts ask questions in English ("which carriers had the most schedule changes today?") over the gold tables, and over the stream's own decisions (rule hits, actions) through Lakebase registered in Unity Catalog. | **Genie** |
 | 4 | **Web app** | Three screens (below). | **Databricks App** + Foundation Model (Claude) |
 
 ### The three screens
@@ -84,13 +88,14 @@ sub-second, and which are fine with seconds or minutes?*
 
 - **Nobody needs sub-second** → **one** serverless Lakeflow pipeline: Kinesis → bronze → silver → change
   detection → Delta, plus a sink to the operational store. Latency is seconds (micro-batch). Simplest, all serverless.
-- **Some consumers need sub-second** (e.g. traveler notifications, seat service) → two jobs reading the same stream:
-  1. the **real-time job** (Real-Time Mode) for those consumers only, and
-  2. a **bronze ingest** that lands every raw version once in Delta for everything else.
+- **Some consumers need sub-second** (e.g. traveler notifications, seat service) → what we built:
+  1. the **real-time job** (Real-Time Mode) reads the feed once, decides, and writes to Lakebase, and
+  2. **Lakebase's change data feed** lands that in Delta, where a serverless pipeline builds silver and gold.
 
-  Real-Time Mode can't write Delta, which is why the raw copy is its own small job. It is not a second copy of the
-  business logic: both call the same library, so a schedule change means the same thing in both, and the
-  stream's decisions are queryable next to gold through Unity Catalog.
+  Real-Time Mode can't write Delta, which is why the analytical copy comes through Lakebase. There's still only one
+  read of the feed and one copy of the business logic: a schedule change means the same thing everywhere because it's
+  decided once. Real-time mode inside Lakeflow pipelines is in preview; once it supports a Lakebase sink, the
+  real-time job can move into the pipeline too.
 
 What to avoid is the old "Lambda architecture" problem: two codebases that each implement the logic and drift apart.
 
@@ -136,8 +141,8 @@ Legend: ✅ built and shown · 🟡 partly / talk track only · ❌ not built ye
 | 2 | Cluster vs serverless | ✅ | RTM on 1 classic node; dispatcher, analytics, app serverless — "per use case" |
 | 3 | Which is cheaper? | ✅ | Measured in UAT: real-time node 1.37 DBU/h (≈ $0.21/h list + EC2), serverless pipeline ≈ $0.10/run. Micro-batch on the same node costs the same but is ~5× slower (≈1 s vs ≈0.19 s p50) |
 | 4 | Data volume: 1–1.5M/day, 15/s normal, 50–100/s peak | ✅ | One small node in UAT: 15/s → p50 185 ms; 100/s → p50 73 ms, p99 124 ms at 14% avg CPU |
-| 5 | "Ingest once, many consumers" (your whiteboard: Kinesis → bronze → several pipelines) | ✅ | Bronze table keeps every raw version; the ms lane reads the source directly (RTM can't read Delta), the batch lane reads bronze |
-| 6 | Read from their Kinesis stream | 🟡 | Batch lane ✅ (12 real versions parsed). Real-time lane: connected to all 4 shards on DBR 19 polling; DBR 18.2 needs EFO. No live records to show yet — ask EPAM to publish test versions |
+| 5 | "Ingest once, many consumers" (your whiteboard: Kinesis → bronze → several pipelines) | ✅ | The real-time stream is the only reader of the feed; Lakebase change data feed lands every decision in Delta (`lb_*_history`), and the analytical pipeline and any other consumer read that |
+| 6 | Read from their Kinesis stream | 🟡 | Earlier batch lane ✅ (12 real versions parsed, kept in `bronze_pnr_versions`). Real-time lane: connected to all 4 shards on DBR 19 polling; DBR 18.2 needs EFO. No live records to show yet — ask EPAM to publish test versions |
 | 7 | Deeply nested JSON gets flattened | ✅ | Parser flattens the PNR into a snapshot (our payload is simpler than real PNRs) |
 | 8 | Deduplication | ✅ | Duplicate/out-of-order versions tagged STALE and ignored; all writes idempotent |
 | 9 | 10–200 versions per booking; track every version vs previous | ✅ | Per-version diff + timeline view; EPAM's job only compares latest-vs-latest |
@@ -175,5 +180,6 @@ positioned as "next step with your team".
 5. **Actions (8 min)** — Traveler card → Accept; show the EventBridge message.
 6. **Cost + architecture (7 min)** — classic for RTM only, serverless elsewhere; cost table from UAT billing; Kinesis
    needs EFO (or Runtime 19 polling) and 4 shards fill one node.
-7. **Batch + Genie (5 min)** — show the pipeline graph (bronze → silver → gold, DQ metrics), then ask Genie
+7. **Analytical lane + Genie (5 min)** — show the Lakebase change data feed tables (`lb_*_history`), then the
+   pipeline graph (silver → gold, DQ metrics), then ask Genie
    "What share of booking versions today were significant vs noise?"

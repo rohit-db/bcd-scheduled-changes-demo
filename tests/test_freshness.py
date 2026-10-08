@@ -37,3 +37,26 @@ def test_get_does_not_block_while_refresh_is_pending():
     assert cache.get() is None and len(pending) == 1   # no duplicate refreshes
     pending[0]()
     assert cache.get() == 1.0
+
+
+def test_a_hung_refresh_does_not_block_refreshes_forever():
+    now, pending = [0.0], []
+    cache = BackgroundTTL(lambda: 7.0, ttl_seconds=60, clock=lambda: now[0], spawn=pending.append,
+                          max_refresh_seconds=120)
+    cache.get()                          # first refresh starts and never finishes (hung warehouse call)
+    now[0] = 100
+    cache.get()
+    assert len(pending) == 1             # still within the allowed refresh time: no duplicate
+    now[0] = 121
+    cache.get()
+    assert len(pending) == 2             # gave up on the hung refresh and started a new one
+    pending[1]()
+    assert cache.get() == 7.0
+
+
+def test_fetch_errors_are_reported(capsys):
+    def fetch():
+        raise RuntimeError("TABLE_OR_VIEW_NOT_FOUND")
+
+    BackgroundTTL(fetch, ttl_seconds=60, spawn=lambda f: f()).get()
+    assert "TABLE_OR_VIEW_NOT_FOUND" in capsys.readouterr().err

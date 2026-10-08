@@ -1,4 +1,4 @@
-# BCD real-time trip-intelligence demo — everything on e2-demo-field-eng.
+# BCD real-time trip-intelligence demo. Targets: e2demo (Databricks demo workspace) and uat (BCD's UAT workspace).
 # FEVM serverless workspaces reject classic clusters (Real-Time Mode is classic-only), and FEVM's IP
 # access list blocks e2-demo from reaching FEVM Lakebase, so stream, Lakebase, jobs and app live here.
 bundle:
@@ -46,6 +46,47 @@ targets:
       app_name: rohit-bcd-trip-intel
     # BCD UAT requires Apps to be deployed from a Git repository, so the app is defined per target.
     resources:
+      # Batch lane from landed files: bronze -> silver -> gold, re-diffing in batch with the shared library.
+      pipelines:
+        trip_intel_batch_pipeline:
+          name: trip_intel_batch_pipeline
+          catalog: ${var.catalog}
+          schema: ${var.schema}
+          serverless: true
+          root_path: ../../src
+          libraries:
+            - glob:
+                include: ../../src/batch_lane/transformations/**
+          configuration:
+            landing_path: ${var.landing_path}
+            kinesis_stream: ${var.kinesis_stream}
+            kinesis_region: ${var.kinesis_region}
+            kinesis_credential: ${var.kinesis_credential}
+
+      jobs:
+        # Batch lane orchestration: land the next slice of versions, then refresh the Lakeflow pipeline.
+        trip_intel_batch:
+          name: trip_intel_batch
+          max_concurrent_runs: 1   # a second trigger while the pipeline is updating would fail; queue/skip instead
+          trigger:
+            periodic:
+              interval: 1
+              unit: HOURS
+          tasks:
+            - task_key: land_versions
+              environment_key: default
+              spark_python_task:
+                python_file: ../../src/batch_lane/land_versions.py
+                parameters: ["--landing-path", "${var.landing_path}"]
+            - task_key: refresh_pipeline
+              depends_on:
+                - task_key: land_versions
+              pipeline_task:
+                pipeline_id: ${resources.pipelines.trip_intel_batch_pipeline.id}
+          environments:
+            - environment_key: default
+              spec:
+                environment_version: "4"
       # The stream's decisions (change_events, rule_hits, action_outbox, ...) live in Lakebase; registering the
       # database in Unity Catalog makes them queryable from SQL and Genie next to the gold tables.
       database_catalogs:
@@ -95,8 +136,33 @@ targets:
       lakebase_host: ep-bitter-fog-d2w6wju5.database.us-east-1.cloud.databricks.com
       secret_scope: databricks-trip-intel
       app_name: databricks-bcd-trip-intel
-      kinesis_stream: uat01-HermesTripsDS   # bronze also reads BCD's real feed (read-only)
     resources:
+      # Analytical lane, ingest once: the real-time stream writes every version to Lakebase; Lakebase change data feed
+      # lands it in Delta (lb_change_events_history); this pipeline builds silver/gold from that copy.
+      pipelines:
+        trip_intel_batch_pipeline:
+          name: trip_intel_batch_pipeline
+          catalog: ${var.catalog}
+          schema: ${var.schema}
+          serverless: true
+          root_path: ../../src
+          libraries:
+            - glob:
+                include: ../../src/batch_lane/from_lakebase_cdf/**
+          configuration:
+            cdf_schema: ${var.catalog}.${var.schema}
+      jobs:
+        trip_intel_batch:
+          name: trip_intel_batch
+          max_concurrent_runs: 1   # a second trigger while the pipeline is updating would fail; queue/skip instead
+          trigger:
+            periodic:
+              interval: 1
+              unit: HOURS
+          tasks:
+            - task_key: refresh_pipeline
+              pipeline_task:
+                pipeline_id: ${resources.pipelines.trip_intel_batch_pipeline.id}
       # Stream decisions queryable from SQL/Genie (see sql/uc_realtime_views.sql). The app itself is deployed from Git.
       database_catalogs:
         trip_intel_ops:
@@ -114,23 +180,6 @@ resources:
       catalog_name: ${var.catalog}
       schema_name: ${var.schema}
       name: trip_intel_landing
-
-  pipelines:
-    # Batch lane: Lakeflow pipeline (serverless, triggered hourly) — bronze -> silver -> gold.
-    trip_intel_batch_pipeline:
-      name: trip_intel_batch_pipeline
-      catalog: ${var.catalog}
-      schema: ${var.schema}
-      serverless: true
-      root_path: ../../src
-      libraries:
-        - glob:
-            include: ../../src/batch_lane/transformations/**
-      configuration:
-        landing_path: ${var.landing_path}
-        kinesis_stream: ${var.kinesis_stream}
-        kinesis_region: ${var.kinesis_region}
-        kinesis_credential: ${var.kinesis_credential}
 
   sql_warehouses:
     trip_intel_wh:
@@ -161,7 +210,10 @@ resources:
               - --secret-scope
               - ${var.secret_scope}
               - --checkpoint
-              - ${var.checkpoint_root}/rtm_v4
+              - ${var.checkpoint_root}/rtm_demo_20261008
+              # Start past every trip generated so far: the idempotent sink skips trips it has already seen.
+              - --seq-offset
+              - "2400000"
           libraries:
             - pypi:
                 package: psycopg[binary]>=3.2
@@ -211,26 +263,3 @@ resources:
             dependencies:
               - psycopg[binary]>=3.2
               - boto3
-
-    # Batch lane orchestration: land the next slice of versions, then refresh the Lakeflow pipeline.
-    trip_intel_batch:
-      name: trip_intel_batch
-      trigger:
-        periodic:
-          interval: 1
-          unit: HOURS
-      tasks:
-        - task_key: land_versions
-          environment_key: default
-          spark_python_task:
-            python_file: ../../src/batch_lane/land_versions.py
-            parameters: ["--landing-path", "${var.landing_path}"]
-        - task_key: refresh_pipeline
-          depends_on:
-            - task_key: land_versions
-          pipeline_task:
-            pipeline_id: ${resources.pipelines.trip_intel_batch_pipeline.id}
-      environments:
-        - environment_key: default
-          spec:
-            environment_version: "4"
