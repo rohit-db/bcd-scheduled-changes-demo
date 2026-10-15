@@ -320,3 +320,51 @@ details.sql pre { white-space: pre-wrap; background: var(--code-bg); padding: 10
   body { grid-template-columns: 64px minmax(0, 1fr); } .sidebar .brand div:last-child, nav button span, .sidebar-foot { display: none; }
   .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } .split, .split.rules, .grid2, .traveler-layout { grid-template-columns: 1fr; }
 }
+
+/* ---- architecture -------------------------------------------------------------------------------------- */
+.arch { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; align-items: start; }
+.arch-nav { display: flex; flex-direction: column; gap: 4px; }
+.arch-nav button { height: auto; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 12px;
+  text-align: left; border-color: transparent; font-weight: 400; }
+.arch-nav button b { font-weight: 600; font-size: 13px; color: var(--foreground); }
+.arch-nav button span { font-size: 12px; color: var(--muted-foreground); }
+.arch-nav button.active { background: var(--sidebar-accent); border-color: var(--border-banner); }
+.arch-nav button.active b { color: var(--primary); }
+.arch-stage { max-height: none; min-height: 0; }
+.arch-img[hidden], .platform[hidden] { display: none; }
+.arch-img { background: #ffffff; border-radius: var(--radius); padding: 8px; text-align: center; }
+.arch-img img { max-width: 100%; max-height: calc(100vh - 200px); object-fit: contain; }
+.platform label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted-foreground); margin-bottom: 6px; }
+.pf-title { margin-bottom: 16px; }
+.pf-title h3 { font-size: 17px; line-height: 24px; margin-bottom: 2px; }
+.pf-key { margin-left: 8px; display: inline-flex; align-items: center; gap: 6px; }
+.pf-key i { width: 6px; height: 6px; border-radius: 50%; background: var(--success); display: inline-block; }
+.pf-body { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 16px; }
+.platform ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.platform li { position: relative; padding: 6px 8px 6px 20px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--card); display: flex; flex-direction: column; }
+.platform li.demo::before { content: ""; position: absolute; left: 8px; top: 12px; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--success); }
+.platform li:not(.demo) { opacity: .65; border-style: dashed; }
+.platform li b { font-size: 12px; font-weight: 600; }
+.platform li span { font-size: 11px; color: var(--muted-foreground); line-height: 15px; }
+.pf-sources { border: 1px dashed var(--input); border-radius: var(--radius-md); padding: 12px; align-self: center; }
+.pf-main { display: flex; flex-direction: column; gap: 8px; }
+.pf-apps { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; background: var(--muted); }
+.pf-apps ul { flex-direction: row; }
+.pf-apps li { flex: 1; }
+.pf-engines { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.pf-engine { border: 1px solid var(--border); border-top: 3px solid; border-radius: var(--radius-md); padding: 12px; background: var(--muted); }
+.pf-engine h4 { font-size: 15px; line-height: 20px; margin: 0; }
+.pf-engine > p { font-size: 12px; color: var(--muted-foreground); margin: 0 0 8px; }
+.e-flow { border-top-color: var(--sev-teal); }
+.e-house { border-top-color: var(--sev-indigo); }
+.e-base { border-top-color: var(--sev-coral); }
+.pf-gov, .pf-lake { border-radius: var(--radius-md); padding: 10px 14px; display: flex; gap: 12px; align-items: baseline; }
+.pf-gov { border: 1px solid var(--border-banner); background: var(--background-banner); }
+.pf-lake { border: 1px solid var(--border); background: var(--secondary); }
+.pf-gov b, .pf-lake b { font-size: 13px; white-space: nowrap; }
+.pf-gov span, .pf-lake span { font-size: 12px; color: var(--muted-foreground); }
+.pf-infra { display: flex; justify-content: flex-end; gap: 16px; font-size: 11px; color: var(--muted-foreground); padding: 0 4px; }
+.arch-img img { cursor: zoom-in; }

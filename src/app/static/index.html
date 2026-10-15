@@ -14,6 +14,7 @@
       <div><h1>Trip Intelligence</h1><div class="sub">on Databricks</div></div>
     </div>
     <nav>
+      <button data-view="architecture"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 10 5-10 5L2 7z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg><span>Architecture</span></button>
       <button data-view="ops" class="active"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>Live Ops Console</span></button>
       <button data-view="analytics"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg><span>Analytics</span></button>
       <button data-view="quality"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg><span>Data quality</span></button>
@@ -28,6 +29,50 @@
   </aside>
 
   <main>
+    <section id="architecture" class="view">
+      <div class="view-head"><div><h2 class="big">How it's built</h2>
+        <p class="muted">The platform first, then the solution diagram by diagram. Each diagram answers one question.</p></div></div>
+      <div class="arch">
+        <div class="arch-nav" id="arch-nav">
+          <button class="active" data-d="platform"><b>The Databricks platform</b><span>What is Databricks, and where does each piece sit?</span></button>
+          <button data-d="01_overview"><b>1 · Reference architecture</b><span>What did you build, end to end?</span></button>
+          <button data-d="02_realtime_sequence"><b>2 · Event → screen</b><span>Where do the 200 ms go?</span></button>
+          <button data-d="03_operator"><b>3 · Inside the stateful step</b><span>How does this replace the track-changes Lambda?</span></button>
+          <button data-d="04_batch_lane"><b>4 · Analytical lane</b><span>Is there a pipeline? What about data quality?</span></button>
+          <button data-d="06_actions"><b>5 · Actions to AWS</b><span>Can it publish to EventBridge? Duplicates?</span></button>
+          <button data-d="08_target_state"><b>6 · Target state for BCD</b><span>How would this run in production?</span></button>
+        </div>
+        <div class="panel arch-stage">
+          <div id="arch-platform" class="platform">
+            <div class="pf-title"><h3>One platform for operations, analytics and AI</h3>
+              <p class="muted">Ingest, warehousing, analytics and transactions on one copy of the data, governed once. <span class="pf-key"><i></i>running in this demo</span></p></div>
+            <div class="pf-body">
+              <div class="pf-sources">
+                <label>Sources</label>
+                <ul><li class="demo"><b>Kinesis · HermesTripsDS</b><span>connected read-only; demo replays its JSON shape</span></li><li><b>100+ connectors</b><span>SaaS, databases, files</span></li><li><b>Zerobus</b><span>direct event ingest</span></li></ul>
+              </div>
+              <div class="pf-main">
+                <div class="pf-apps"><label>Databricks Apps · AI/BI</label>
+                  <ul><li class="demo"><b>This console</b><span>ops, analytics, quality</span></li><li class="demo"><b>Rule Studio</b><span>English → rule in ~5 s</span></li><li class="demo"><b>Genie</b><span>questions in plain English</span></li><li><b>Dashboards</b><span>AI/BI</span></li></ul></div>
+                <div class="pf-engines">
+                  <div class="pf-engine e-flow"><h4>Lakeflow</h4><p>Ingest, ETL &amp; streaming</p>
+                    <ul><li class="demo"><b>Real-Time Mode stream</b><span>diff every version, ~0.2 s</span></li><li class="demo"><b>Lakeflow pipeline</b><span>silver → gold, expectations</span></li><li class="demo"><b>Jobs</b><span>dispatcher → EventBridge</span></li></ul></div>
+                  <div class="pf-engine e-house"><h4>Lakehouse</h4><p>Real-time + batch analytics, AI</p>
+                    <ul><li class="demo"><b>Delta tables</b><span>change history, silver, gold</span></li><li class="demo"><b>Serverless SQL</b><span>warehouse for Genie &amp; BI</span></li><li class="demo"><b>Model serving</b><span>LLM behind Rule Studio</span></li></ul></div>
+                  <div class="pf-engine e-base"><h4>Lakebase</h4><p>Transactions (Postgres)</p>
+                    <ul><li class="demo"><b>Operational state</b><span>changes, rule hits, outbox</span></li><li class="demo"><b>Millisecond reads</b><span>for the app and services</span></li><li class="demo"><b>Change data feed</b><span>every row → Delta in seconds</span></li></ul></div>
+                </div>
+                <div class="pf-gov"><b>Unity Catalog</b><span>one place for permissions, lineage and audit, across all three engines</span></div>
+                <div class="pf-lake"><b>Open data lake</b><span>Delta Lake · Iceberg · one copy of the data, no sync jobs</span></div>
+                <div class="pf-infra"><span>Your AWS account</span><span>Any model</span><span>Open formats, no lock-in</span></div>
+              </div>
+            </div>
+          </div>
+          <div id="arch-img" class="arch-img" hidden><img alt="" /></div>
+        </div>
+      </div>
+    </section>
+
     <section id="ops" class="view active">
       <div class="view-head"><div><h2 class="big">Live Ops Console</h2>
         <p class="muted">Every booking version compared with the previous one, as it happens. Noise is filtered out.</p></div></div>

@@ -33,6 +33,17 @@ document.querySelectorAll("nav button").forEach((b) =>
   })
 );
 
+// ---- architecture
+document.querySelectorAll("#arch-nav button").forEach((b) =>
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#arch-nav button").forEach((x) => x.classList.toggle("active", x === b));
+    const platform = b.dataset.d === "platform";
+    $("#arch-platform").hidden = !platform;
+    $("#arch-img").hidden = platform;
+    if (!platform) { const img = $("#arch-img img"); img.title = "Click to open full size"; img.onclick = () => window.open(img.src); img.src = `/static/arch/${b.dataset.d}.png`; img.alt = b.querySelector("b").textContent; }
+  })
+);
+
 // ---- ops console
 async function refreshKpis() {
   try {
