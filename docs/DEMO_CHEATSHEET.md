@@ -1,4 +1,4 @@
-# BCD Trip Intelligence — demo cheat sheet (Thu 2026-10-08, 2:00–3:00pm ET)
+# BCD Trip Intelligence — demo cheat sheet (Thu 2026-10-15, 2:00–3:00pm ET)
 
 **Audience:** BCD engineering (their architect and team), EPAM. **Goal:** show BCD's own change-tracking process running in
 real time on Databricks, in *their* UAT workspace, and leave with the one question that decides the design: *which
@@ -20,48 +20,33 @@ IDs and measurements: [`DEMO_RUNBOOK.md`](DEMO_RUNBOOK.md).
 | 7 | Analytical pipeline | https://dbc-24f136f2-50df.cloud.databricks.com/pipelines/c7d5cc27-d8c0-4309-b35d-e18054d22bb1?o=7474657914890252 |
 | 8 | Genie "BCD Trip Changes" | https://dbc-24f136f2-50df.cloud.databricks.com/genie/rooms/01f1c30ff44310c6b475edd6a2e6c34c?o=7474657914890252 |
 
-## T-60 (1:00pm)
+## Already running (started 12:00 on 10/15)
 
-1. **Stream running?** Job page (tab 3) should show one active run. If not:
-   `databricks bundle run trip_intel_rtm --no-wait -t uat --profile bcd-api-uat` (cluster ~5 min, rows ~6 min).
-2. **Start the dispatcher** (its runs stop after 55 min):
-   `databricks bundle run trip_intel_dispatcher --no-wait -t uat --profile bcd-api-uat`
-3. **Refresh the analytical lane** so it shows minutes, not hours (~1 min):
-   `databricks bundle run trip_intel_batch -t uat --profile bcd-api-uat`
-4. **App** (tab 4): log in; the "Stream live" dot is green, p50 ≈ 185 ms, the feed is moving, the analytical tier
-   shows a few minutes. Rule Studio: no rehearsal rules left active (disable "Traveler email changed" if present).
-5. **Genie** (tab 8): ask the warm-up question once so the warehouse is warm:
-   "What share of booking versions today were significant vs noise?" (≈14.6%).
+Stream (run 241040172461397, fresh checkpoint, trips from T0300000), dispatcher, UAT app (commit `c0ba9dc`),
+analytical lane refreshed at 12:04. Present the app in **dark mode** (sidebar → Dark mode): it matches the
+Databricks reference demo.
 
 ## T-15 (1:45pm)
 
-1. **Deck server:** `cd ~/Documents/github/decks/bcd-trip-intel && python3 -m http.server 8011` (skip if already up).
-2. **Notebook cluster:** in tab 2, attach to `[dev rohit_bhagwat] rtm-live-notebook` and **Start** it if it has
-   auto-terminated (≈5 min). Run **cell 0 (setup) only**.
-3. Run the SQL in tab 5 once, so it's warm:
-   ```sql
-   SELECT type, target, status, eventbridge_entry
-   FROM databricks_demo_trip_intel_ops.public.action_outbox
-   WHERE status = 'SIMULATED' ORDER BY created_ts DESC LIMIT 5;
-   ```
-4. Close everything else. Phone on silent.
+1. Refresh the analytical lane so gold is minutes old: `databricks bundle run trip_intel_batch -t uat --profile bcd-api-uat`
+2. App (tab 4): green "Stream live"; change-type tiles show ▲/▼ deltas; Data quality: checks green.
+3. Warm Genie once: Data quality → first suggested question (~20 s).
+4. Deck server: `cd ~/Documents/github/decks/bcd-trip-intel && python3 -m http.server 8011`.
+5. Notebook (tab 2): attach to `[dev rohit_bhagwat] rtm-live-notebook`, start it if terminated, run cell 0 only.
 
 ## Run of show (60 min)
 
 | Time | Show | Say (one line) |
 |---|---|---|
-| 0:00–0:03 | Deck slide 1 | "We built your change-tracking process on Databricks, in your UAT workspace, on your data structures." |
-| 0:03–0:09 | Slides 2–4 | Problem in their numbers; "read the feed once, decide once"; walk the architecture left to right. |
-| 0:09–0:17 | **Notebook** (tab 2), cells 1 → 2 → 3 | "No sink, just `display()`. Watch `decided_ms_after_event`: every version compared with the previous one, a few hundred ms after it happened." Cell 3: "85% is noise; this is what matters." |
-| 0:17–0:21 | Job (tab 3) + slides 5–6 | "Same logic as one always-on job: one node, Runtime 18.2, Photon off. One trigger line picks real-time or micro-batch." |
-| 0:21–0:29 | **App: Ops Console** | KPI cards (p50 ≈ 185 ms, % significant, two tiers). Click a red `Schedule change` row → timeline: "v1 created it, the next versions were noise, then the airline moved the flight. Both rules fired." Slide 7 if they want the code. |
-| 0:29–0:39 | **App: Rule Studio** | Ask their architect for a rule. Fallback: "If a traveler's email address changes, notify the profile sync service." Draft → Preview → Approve → watch Hits (first hit in ~20 s). "No code, no deploy." Slide 13. |
-| 0:39–0:44 | **App: Traveler** → tab 5 | Accept a card. Then the SQL: "the exact PutEvents entry, with an idempotency key; simulated because UAT has no bus." Slides 8–9: "Lakebase is one sink; the stream can publish straight to your EventBridge." |
-| 0:44–0:48 | Slides 10–11 | 73 ms at 100/s on one node at 14% CPU; RTM 185 ms vs the same job as micro-batch ≈1 s; ≈$0.21/h node + EC2, pipeline ≈$0.10/run. |
-| 0:48–0:54 | Tabs 6 → 7 → 8, slides 14–15 | Change feed table ("every decision, in Delta, seconds behind"), pipeline graph (DQ: 932,618 passed, 0 dropped), then Genie: "Which carriers had the most schedule changes today?" "We read your feed once." |
-| 0:54–1:00 | Slide 16 | Four steps to production; **ask the deciding question**; agree next steps. |
-
-Stop the notebook's displays (cell 5) when you leave the notebook, so they don't compete with anything else.
+| 0:00–0:04 | Deck 1–3 | Their problem in their numbers. Slide 3: "today you run two stacks: Lambda/EventBridge for ops, S3 + hourly batch for analytics. Two versions of the truth, an hour of lag, two sets of governance." |
+| 0:04–0:08 | Deck 4–5 | "Read the feed once, decide once"; the architecture. |
+| 0:08–0:14 | **Notebook** cells 1 → 3 | Real-Time Mode live with no sink: every version diffed, `decided_ms_after_event` in the low hundreds of ms. |
+| 0:14–0:22 | **App: Live Ops Console** | KPIs + sparklines; change-type tiles (▲/▼ vs the previous 5 min); click a schedule change → timeline. "This is your track-changes Lambda as one stateful step." |
+| 0:22–0:30 | **App: Analytics** | Live 5-second ticker; versions vs significant (the gap is noise that never reaches your systems); latency distribution; schedule changes by route; rules fired → actions. "Same Lakebase, no warehouse, no dashboard to build." |
+| 0:30–0:38 | **App: Data quality** | Lineage strip (Kinesis → Lakebase → change feed → silver → gold, live counts); checks: expectations + every decision reconciled across layers; Ask Genie a steward question. "This is the governance and data-quality tool, on the same copy of the data, with no UI to build." |
+| 0:38–0:46 | **App: Rule Studio → Traveler** | Their rule (or the email-change rule) live in ~5 s; traveler accepts; EventBridge entry (SQL tab). Deck 9: Lakebase is one sink, EventBridge can be another. |
+| 0:46–0:52 | Deck 10–12 + code slides as needed | 73 ms at peak on one node; RTM vs micro-batch; cost. Databricks' own claim: sub-100 ms and >260k events/s at sub-100 ms p99. |
+| 0:52–1:00 | Deck 17 | Four steps to production; **ask: which consumers truly need sub-second?** |
 
 ## Numbers to have ready
 
@@ -76,6 +61,16 @@ Stop the notebook's displays (cell 5) when you leave the notebook, so they don't
 | Their Kinesis | `uat01-HermesTripsDS`, 4 shards; read-only |
 
 ## If they ask
+
+- **"Schedule changes is already live in batch; is streaming needed?"** Batch notifies the traveler up to an hour
+  late. Real-time is ~0.2 s on one node at ≈$0.21/h, and it's the same code: one trigger line switches real-time vs
+  micro-batch, so the latency decision is cheap to change later.
+- **"This competes with our AWS investment."** It replaces the Lambda diff and the sync pipelines, and adds
+  governance, data quality, analytics and Genie on the same data. Databricks released the same pattern this week
+  ("Run Live Energy Trading, Risk, and Analytics in Databricks": Real-Time Mode → Lakebase → App + dashboards + Genie).
+- **"Data governance and quality is the real priority."** That's the Data quality tab: expectations, cross-layer
+  reconciliation, lineage, Unity Catalog permissions, Genie for stewards. Faster time to market because it's the
+  same pipeline, lower ops cost because there's no second stack.
 
 - **"Do we need two pipelines?"** Only if some consumer needs sub-second. Otherwise one serverless pipeline does it all.
   Either way the feed is read once and the logic exists once.
