@@ -1,10 +1,11 @@
-"""BCD Trip Intelligence app: Ops Console, Rule Studio, Traveler view over Lakebase."""
+"""BCD Trip Intelligence app: Ops Console, Analytics, Data quality, Rule Studio, Traveler view over Lakebase."""
 import asyncio
 import json
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from databricks.sdk import WorkspaceClient
@@ -17,6 +18,7 @@ from pydantic import BaseModel
 from app import db
 from app.feed import FeedBroadcaster, TTLValue
 from app.freshness import BackgroundTTL
+from app.insights import ANALYTICS_SQL, ANALYTICS_WINDOW_ROWS, quality_checks, quality_sql, shape_genie
 from app.rule_drafting import SYSTEM_PROMPT, parse_draft
 from trip_intel.jsonlogic import apply, truthy, validate
 from trip_intel.rules import context
@@ -222,3 +224,86 @@ def respond(outbox_id: str, body: RespondIn):
                   ON CONFLICT (outbox_id) DO UPDATE SET response = EXCLUDED.response, response_ts = now()""",
                (outbox_id, body.response))
     return {"outbox_id": outbox_id, "response": body.response}
+
+
+# ---- analytics (Lakebase, live) ----------------------------------------------------------------------------
+
+def _compute_analytics():
+    params = {"n": ANALYTICS_WINDOW_ROWS}
+    out = {name: db.query(sql, params) for name, sql in ANALYTICS_SQL.items()}
+    out["summary"] = out["summary"][0] if out["summary"] else {}
+    return out
+
+
+_analytics = TTLValue(_compute_analytics, ttl_seconds=5)
+
+
+@app.get("/api/analytics")
+def analytics():
+    return _analytics.get()
+
+
+# ---- data quality & governance (warehouse over the Delta tables) -------------------------------------------
+
+def _sql_rows(w: WorkspaceClient, statement: str) -> list[dict]:
+    res = w.statement_execution.execute_statement(warehouse_id=os.environ["WAREHOUSE_ID"], statement=statement,
+                                                  wait_timeout="50s")
+    if res.status and res.status.error:
+        raise RuntimeError(res.status.error.message)
+    cols = [c.name for c in res.manifest.schema.columns]
+    return [dict(zip(cols, row)) for row in (res.result.data_array or [])] if res.result else []
+
+
+def _compute_quality():
+    w = WorkspaceClient()
+    statements = quality_sql(os.environ["ANALYTICS_SCHEMA"])
+    with ThreadPoolExecutor(max_workers=len(statements)) as pool:
+        results = dict(zip(statements, pool.map(lambda s: _sql_rows(w, s), statements.values())))
+    lake = db.query("SELECT count(*) AS n, max(written_ts) AS latest FROM change_events")[0]
+    dq = results["dq"][0]
+    layers = {r["layer"]: r for r in results["layers"]}
+    counts = {"lakebase": lake["n"], "cdf": dq["total"],
+              "silver": layers["silver_change_events"]["n"], "gold": layers["gold_version_changes"]["n"]}
+    lineage = [
+        {"name": "Kinesis → Real-Time Mode stream", "kind": "stream", "rows": None, "latest": None},
+        {"name": "Lakebase: change_events", "kind": "operational", "rows": lake["n"], "latest": str(lake["latest"])},
+        {"name": "lb_change_events_history", "kind": "change data feed", "rows": dq["total"], "latest": dq["latest"]},
+        *({"name": name, "kind": "silver" if name.startswith("silver") else "gold",
+           "rows": layers[name]["n"], "latest": layers[name]["latest"]} for name in layers),
+    ]
+    return {"checks": quality_checks(dq, counts), "lineage": lineage, "completeness": results["completeness"][0],
+            "schema": os.environ["ANALYTICS_SCHEMA"], "computed_at": datetime.now(timezone.utc).isoformat()}
+
+
+_quality = BackgroundTTL(_compute_quality, ttl_seconds=60)
+
+
+@app.get("/api/quality")
+def quality():
+    return _quality.get() or {"loading": True}
+
+
+# ---- Ask Genie (natural-language questions for data stewards) ----------------------------------------------
+
+class AskIn(BaseModel):
+    question: str
+
+
+@app.post("/api/genie")
+def ask_genie(body: AskIn):
+    space_id = os.environ.get("GENIE_SPACE_ID")
+    if not space_id:
+        raise HTTPException(503, "GENIE_SPACE_ID is not configured")
+    w = WorkspaceClient()
+    try:
+        msg = w.genie.start_conversation_and_wait(space_id, body.question, timeout=timedelta(seconds=90))
+        message = msg.as_dict()
+        result = None
+        for att in msg.attachments or []:
+            if att.query:
+                result = w.genie.get_message_attachment_query_result(
+                    space_id, msg.conversation_id, msg.message_id, att.attachment_id).as_dict()
+                break
+    except Exception as exc:  # timeouts, permissions, throttling: show the reason
+        raise HTTPException(502, f"Genie failed: {exc}")
+    return shape_genie(message, result)

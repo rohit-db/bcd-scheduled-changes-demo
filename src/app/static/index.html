@@ -17,6 +17,8 @@
     </div>
     <nav>
       <button data-view="ops" class="active">Live Ops Console</button>
+      <button data-view="analytics">Analytics</button>
+      <button data-view="quality">Data quality</button>
       <button data-view="rules">Rule Studio</button>
       <button data-view="traveler">Traveler</button>
     </nav>
@@ -26,9 +28,9 @@
   <main>
     <section id="ops" class="view active">
       <div class="kpis">
-        <div class="kpi"><label>Versions received</label><span id="k-versions">–</span><small>last 5 minutes</small></div>
+        <div class="kpi"><label>Versions received</label><span id="k-versions">–</span><small>last 5 minutes</small><svg class="spark" id="spark-versions"></svg></div>
         <div class="kpi"><label>Significant</label><span id="k-significant">–</span><small>the rest are re-saves</small></div>
-        <div class="kpi accent"><label>Event → detected p50</label><span id="k-p50">–</span><small>Real-Time Mode</small></div>
+        <div class="kpi accent"><label>Event → detected p50</label><span id="k-p50">–</span><small>Real-Time Mode</small><svg class="spark" id="spark-p50"></svg></div>
         <div class="kpi accent"><label>Event → detected p95</label><span id="k-p95">–</span><small>Real-Time Mode</small></div>
         <div class="kpi lane rt" title="Same feed and same change logic as the analytical tier; tuned for milliseconds"><label>Operational tier · real-time</label><span id="k-rtm">–</span><small>ops, travelers, services</small></div>
         <div class="kpi lane batch" title="Same feed and same change logic as the operational tier; refreshed on a schedule"><label>Analytical tier · hourly</label><span id="k-batch">–</span><small>reporting, Genie, finance</small></div>
@@ -41,6 +43,67 @@
         <div class="panel">
           <div class="panel-head"><h2 id="trip-title">Booking history</h2><span id="trip-sub" class="muted">click a change to see every version</span></div>
           <div id="timeline"><div class="empty">Select a booking on the left.</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="analytics" class="view">
+      <div class="view-head">
+        <div><h2 class="big">What's changing in BCD's bookings</h2>
+          <p class="muted" id="a-window">Live from Lakebase, the same store the stream writes to</p></div>
+      </div>
+      <div class="kpis" id="a-kpis"></div>
+      <div class="grid2">
+        <div class="panel chart-panel wide">
+          <div class="panel-head"><h2>Booking versions per minute</h2>
+            <span class="legend"><i class="sw sw-all"></i>All versions <i class="sw sw-sig"></i>Significant</span></div>
+          <div class="chart" id="c-volume"></div>
+        </div>
+        <div class="panel chart-panel">
+          <div class="panel-head"><h2>What changed</h2><span class="muted">significant versions, by change type</span></div>
+          <div id="c-mix"></div>
+        </div>
+        <div class="panel chart-panel">
+          <div class="panel-head"><h2>Detection latency, event → decision</h2><span class="muted">distribution, 50 ms buckets</span></div>
+          <div class="chart" id="c-latency"></div>
+        </div>
+        <div class="panel chart-panel">
+          <div class="panel-head"><h2>Schedule changes by route</h2><span class="muted">airline re-timings detected</span></div>
+          <table class="mini" id="c-routes"><thead><tr><th>Carrier</th><th>Route</th><th class="num">Changes</th><th class="num">Avg shift</th></tr></thead><tbody></tbody></table>
+        </div>
+        <div class="panel chart-panel">
+          <div class="panel-head"><h2>Rules fired and actions sent</h2><span class="muted">in the same window</span></div>
+          <div id="c-rules"></div>
+          <div id="c-actions" class="actions-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="quality" class="view">
+      <div class="view-head">
+        <div><h2 class="big">Every decision checked, reconciled and governed</h2>
+          <p class="muted">Data-quality expectations run in the pipeline; Unity Catalog governs every table below. No UI to build for data stewards.</p></div>
+        <span class="muted" id="q-updated"></span>
+      </div>
+      <div class="panel lineage-panel">
+        <div class="panel-head"><h2>Lineage and freshness</h2><span class="muted">one copy of the data, from the feed to gold</span></div>
+        <div class="lineage" id="q-lineage"><div class="empty">Checking the analytical tables…</div></div>
+      </div>
+      <div class="grid2">
+        <div class="panel">
+          <div class="panel-head"><h2>Data-quality checks</h2><span class="muted">expectations + cross-layer reconciliation</span></div>
+          <ul class="checks" id="q-checks"></ul>
+          <div class="kpis two" id="q-complete"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Ask Genie</h2><span class="muted">plain English over the governed tables</span></div>
+          <div class="chips" id="g-chips"></div>
+          <div class="row ask"><input id="g-q" placeholder="Ask about booking changes, carriers, data quality…" /><button id="g-ask" class="primary">Ask</button></div>
+          <div id="g-out"></div>
+          <div class="gov">
+            <b>Governed in Unity Catalog</b>
+            <span>Tables, Lakebase, volumes and the Kinesis / EventBridge credentials share one set of permissions, lineage and audit. Genie answers with the asker's own permissions.</span>
+          </div>
         </div>
       </div>
     </section>
