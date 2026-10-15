@@ -1,4 +1,29 @@
-# Handoff — state as of 2026-10-08 ~11:15 ET (demo with BCD today 2–3pm ET, in BCD's UAT workspace)
+# Handoff — state as of 2026-10-15 ~12:15 ET (BCD demo TODAY 2:00–3:00pm ET, in BCD's UAT workspace)
+
+## Today (10/15) — read this first
+- **Running on BCD's bill (stop after the call):** stream run 241040172461397 (started 12:00, checkpoint
+  `rtm_demo_20261015`, `--seq-offset 3600000`, trips from T0300000), dispatcher run 800563887858644, UAT app
+  `databricks-bcd-trip-intel` (deployed commit `c0ba9dc` of `rohit-db/bcd-trip-intel-app`), local fallback app on :8766.
+- **App now:** DuBois design (sidebar, light/dark tokens, 4px, 13px) + Live Ops (KPIs w/ sparklines, live change-type
+  tiles), Analytics tab (live 5-s ticker, volume, change mix, latency histogram, routes, rules/actions), Data quality
+  tab (lineage/freshness, expectation + reconciliation checks, Ask Genie), Rule Studio, Traveler. Code:
+  `src/app/insights.py`, `src/app/main.py` (/api/analytics, /api/ticker, /api/quality, /api/genie). 93 tests pass.
+- **App SP** (68782add-9b4b-416e-8f54-ae2e26419d39) has SELECT on lb/silver/gold/rt tables, USE on
+  `databricks_demo_trip_intel_ops`, CAN_RUN on Genie space; app resource `genie-space` = secret
+  `databricks-trip-intel/genie-space-id`.
+- **Deck:** `~/Documents/github/decks/bcd-trip-intel/bcd-trip-intel.dc.html` (+ `.pdf`, 17 slides; rebuild with
+  `build/build_deck.py` from `build/bcd-trip-intel.v1.dc.html`). New slide 3 "Two stacks" from the 10/14 Databricks
+  video "Run Live Energy Trading, Risk, and Analytics in Databricks".
+- **EPAM context (10/13 call):** they say real-time isn't Suda's priority (schedule changes "already live" in batch);
+  Suda wants a data governance/quality tool, time to market, low ops cost, easy for stewards. Our stance: show all
+  capabilities with conviction — Data quality tab answers governance on the same copy of data.
+- **After the call:** cancel stream + dispatcher runs (`databricks jobs list-runs --active-only --profile bcd-api-uat`),
+  stop the app (`databricks apps stop databricks-bcd-trip-intel`), stop the local app, decide on Lakebase.
+- Run of show and Q&A: `docs/DEMO_CHEATSHEET.md`.
+
+---
+
+# Earlier handoff — state as of 2026-10-08 ~11:15 ET (demo with BCD today 2–3pm ET, in BCD's UAT workspace)
 
 Start a new session by reading this file, then `README.md`, `docs/DEMO_RUNBOOK.md` (UAT section) and
 `docs/WHAT_WE_BUILT.md`. Branch `feat/realtime-demos`; last commit `67e80d0` (not pushed).
