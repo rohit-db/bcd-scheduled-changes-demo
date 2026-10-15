@@ -73,3 +73,18 @@ def test_quality_checks_warn_while_the_feed_is_catching_up():
     # Delta lags Lakebase by a few seconds: a small gap is expected, not a failure.
     check = _by_name(quality_checks(DQ, dict(COUNTS, cdf=995)))["Lakebase → Delta (change data feed)"]
     assert check["status"] == "warn"
+
+
+def test_quality_checks_pass_with_a_few_seconds_in_flight():
+    # Live stream: Delta trails Lakebase by a few seconds of rows; that's the feed working, not a gap.
+    check = _by_name(quality_checks(dict(DQ, total=1_000_000), dict(COUNTS, lakebase=1_000_100, cdf=1_000_000)))[
+        "Lakebase → Delta (change data feed)"]
+    assert check["status"] == "pass"
+    assert "100" in check["detail"] and "in flight" in check["detail"]
+
+
+def test_gold_behind_silver_is_scheduled_not_a_quality_issue():
+    # The analytical tier refreshes hourly by design: newer versions waiting for it are information, not a defect.
+    check = _by_name(quality_checks(dict(DQ, total=1200), dict(COUNTS, lakebase=1200, cdf=1200)))["Delta → silver → gold"]
+    assert check["status"] == "info"
+    assert "200" in check["detail"] and "next" in check["detail"]

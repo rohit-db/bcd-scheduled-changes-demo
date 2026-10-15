@@ -302,7 +302,7 @@ setInterval(refreshAnalytics, 5000);
 refreshAnalytics();
 
 // ---- data quality view (warehouse, refreshed every minute) ------------------------------------------------
-const STATUS = { pass: ["✓", "Pass"], warn: ["!", "Review"], fail: ["✕", "Fail"] };
+const STATUS = { pass: ["✓", "Pass"], info: ["i", "Scheduled"], warn: ["!", "Review"], fail: ["✕", "Fail"] };
 async function loadQuality() {
   let q;
   try { q = await api("/api/quality"); } catch (e) { $("#q-checks").innerHTML = `<li class="err">${esc(e.message)}</li>`; return; }

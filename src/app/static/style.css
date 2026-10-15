@@ -269,11 +269,12 @@ table.mini th, table.mini td { padding: 6px 8px; }
 .checks { list-style: none; margin: 0; padding: 0; }
 .check { display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center; padding: 10px 2px; border-bottom: 1px solid var(--border); }
 .check .badge { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 11px; color: #fff; }
-.check.pass .badge { background: var(--success); } .check.warn .badge { background: var(--warning); } .check.fail .badge { background: var(--destructive); }
+.check.pass .badge { background: var(--success); } .check.info .badge { background: var(--primary); } .check.warn .badge { background: var(--warning); } .check.fail .badge { background: var(--destructive); }
 .check .detail { font-size: 12px; line-height: 16px; color: var(--muted-foreground); }
 .check-status { height: 20px; display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; padding: 0 6px; border-radius: var(--radius); }
 .check.pass .check-status { color: var(--success); background: var(--background-success); }
 .check.warn .check-status { color: var(--warning); background: var(--background-warning); }
+.check.info .check-status { color: var(--primary); background: var(--background-banner); }
 .check.fail .check-status { color: var(--destructive); background: var(--background-danger); }
 .chips { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 .chip { height: auto; min-height: 28px; padding: 4px 10px; text-align: left; font-weight: 400; font-size: 12px; justify-content: flex-start;

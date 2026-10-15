@@ -104,20 +104,23 @@ def quality_checks(dq: dict, counts: dict) -> list[dict]:
          "detail": "each version recorded exactly once" if dupes == 0 else f"{dupes:,} duplicate versions"},
     ]
 
-    feed_status = _status_for_gap(cdf, lakebase, tolerance=0.02)
-    checks.append({
-        "name": "Lakebase → Delta (change data feed)", "rule": "row counts reconcile",
-        "status": feed_status,
-        "detail": (f"{cdf:,} of {lakebase:,} decisions in Delta" if feed_status != "pass"
-                   else f"all {lakebase:,} decisions copied to Delta"),
-    })
+    in_flight = lakebase - cdf
+    if in_flight == 0:
+        feed_status, feed_detail = "pass", f"all {lakebase:,} decisions copied to Delta"
+    elif 0 < in_flight <= lakebase * 0.001:  # ≈ seconds of live writes not yet copied: the feed working, not a gap
+        feed_status, feed_detail = "pass", f"{cdf:,} decisions in Delta, {in_flight:,} in flight (seconds behind)"
+    else:
+        feed_status = _status_for_gap(cdf, lakebase, tolerance=0.02)
+        feed_detail = f"{cdf:,} of {lakebase:,} decisions in Delta"
+    checks.append({"name": "Lakebase → Delta (change data feed)", "rule": "row counts reconcile",
+                   "status": feed_status, "detail": feed_detail})
 
     expected_silver = total - missing - bad
     if silver == expected_silver and gold == silver:
         pipe_status, pipe_detail = "pass", f"{gold:,} versions in gold, matching silver"
     elif silver <= expected_silver and gold <= silver:
         waiting = expected_silver - gold
-        pipe_status, pipe_detail = "warn", f"{waiting:,} versions waiting for the next pipeline refresh"
+        pipe_status, pipe_detail = "info", f"{waiting:,} newer versions arrive with the next scheduled refresh (hourly)"
     else:
         pipe_status, pipe_detail = "fail", f"silver {silver:,} / gold {gold:,} don't reconcile with {expected_silver:,} expected"
     checks.append({"name": "Delta → silver → gold", "rule": "row counts reconcile", "status": pipe_status,
