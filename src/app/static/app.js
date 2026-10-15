@@ -11,7 +11,7 @@ const api = async (path, opts = {}) => {
   }
   return data;
 };
-const fmtMs = (v) => (v == null ? "–" : `${Math.round(v)} ms`);
+const fmtMs = (v) => (v == null ? "–" : v < 10000 ? `${Math.round(v)} ms` : v < 3.6e6 ? `${(v / 1000).toFixed(1)} s` : `${(v / 3.6e6).toFixed(1)} h`);
 const fmtAge = (s) => (s == null ? "–" : s < 120 ? `${Math.round(s)} s ago` : s < 7200 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const human = (t) => t.charAt(0) + t.slice(1).toLowerCase().replaceAll("_", " ");
@@ -264,7 +264,8 @@ let analyticsCache = null;
 async function refreshAnalytics() {
   try { analyticsCache = await api("/api/analytics"); } catch (e) { console.error(e); return; }
   const a = analyticsCache, s = a.summary || {};
-  const rows = a.per_minute.map((r) => ({ x: new Date(r.minute), versions: Number(r.versions), significant: Number(r.significant), p50: Number(r.p50_ms) }));
+  // The newest minute is still filling up; leave it out so lines don't dip at the right edge.
+  const rows = a.per_minute.slice(0, -1).map((r) => ({ x: new Date(r.minute), versions: Number(r.versions), significant: Number(r.significant), p50: Number(r.p50_ms) }));
   const live = rows.slice(-15);
   sparkline($("#spark-versions"), live.map((r) => r.versions));
   sparkline($("#spark-p50"), live.map((r) => r.p50));
@@ -299,13 +300,16 @@ const STATUS = { pass: ["✓", "Pass"], warn: ["!", "Review"], fail: ["✕", "Fa
 async function loadQuality() {
   let q;
   try { q = await api("/api/quality"); } catch (e) { $("#q-checks").innerHTML = `<li class="err">${esc(e.message)}</li>`; return; }
-  if (q.loading) { setTimeout(loadQuality, 3000); return; }
+  if (q.loading) {
+    $("#q-checks").innerHTML = `<li class="genie-wait"><span class="dot"></span> Running data-quality checks on the warehouse…</li>`;
+    setTimeout(loadQuality, 3000); return;
+  }
   $("#q-updated").textContent = `checked ${ageText(q.computed_at)}`;
   $("#q-lineage").innerHTML = q.lineage.map((n, i) => `
     ${i ? '<span class="lin-arrow">→</span>' : ""}
     <div class="lin-node ${n.kind.replaceAll(" ", "-")}">
       <span class="lin-kind">${esc(n.kind)}</span>
-      <b>${esc(n.name)}</b>
+      <b>${esc(n.name).replaceAll("_", "_<wbr>")}</b>
       <span>${n.rows == null ? "every version, ~0.2 s" : `${fmtInt(n.rows)} rows`}</span>
       <span class="muted">${n.latest ? `updated ${ageText(n.latest.endsWith("Z") || n.latest.includes("+") ? n.latest : n.latest + "Z")}` : n.rows == null ? "live" : ""}</span>
     </div>`).join("");
@@ -346,3 +350,14 @@ document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click
   if (b.dataset.view === "analytics") refreshAnalytics();
   if (b.dataset.view === "quality") loadQuality();
 }));
+
+// ---- light / dark (DuBois tokens switch with the .dark class) ---------------------------------------------
+function syncThemeLabel() {
+  $("#theme span").textContent = document.documentElement.classList.contains("dark") ? "Light mode" : "Dark mode";
+}
+$("#theme").addEventListener("click", () => {
+  const dark = document.documentElement.classList.toggle("dark");
+  localStorage.setItem("theme", dark ? "dark" : "light");
+  syncThemeLabel();
+});
+syncThemeLabel();

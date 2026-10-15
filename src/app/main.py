@@ -51,6 +51,7 @@ async def lifespan(app_):
     start = (await asyncio.to_thread(db.query, "SELECT coalesce(max(id), 0) AS m FROM change_events"))[0]["m"]
     app_.state.feed = FeedBroadcaster(_fetch_feed, start=start)
     task = asyncio.create_task(_run_feed(app_.state.feed))
+    _quality.get()  # start the warehouse checks now so the Data quality view is ready when opened
     yield
     task.cancel()
     db.pool.close()
@@ -266,7 +267,7 @@ def _compute_quality():
               "silver": layers["silver_change_events"]["n"], "gold": layers["gold_version_changes"]["n"]}
     lineage = [
         {"name": "Kinesis → Real-Time Mode stream", "kind": "stream", "rows": None, "latest": None},
-        {"name": "Lakebase: change_events", "kind": "operational", "rows": lake["n"], "latest": str(lake["latest"])},
+        {"name": "Lakebase: change_events", "kind": "operational", "rows": lake["n"], "latest": lake["latest"].isoformat() if lake["latest"] else None},
         {"name": "lb_change_events_history", "kind": "change data feed", "rows": dq["total"], "latest": dq["latest"]},
         *({"name": name, "kind": "silver" if name.startswith("silver") else "gold",
            "rows": layers[name]["n"], "latest": layers[name]["latest"]} for name in layers),

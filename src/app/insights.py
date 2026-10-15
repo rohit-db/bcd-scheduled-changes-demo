@@ -2,7 +2,8 @@
 
 ANALYTICS_WINDOW_ROWS = 30000  # ≈ 33 minutes at 15 versions/s; selected by primary key, so it stays fast
 
-_WINDOW = "WITH w AS (SELECT * FROM change_events WHERE id > (SELECT max(id) FROM change_events) - %(n)s)"
+_WINDOW = ("WITH w AS (SELECT * FROM change_events WHERE id > (SELECT max(id) FROM change_events) - %(n)s "
+           "AND written_ts > (SELECT max(written_ts) FROM change_events) - interval '30 minutes')")
 _SIG = "NOT (tags <@ ARRAY['NO_SIGNIFICANT_CHANGE','STALE_VERSION'])"
 _LAT = "extract(epoch FROM detected_ts - event_ts) * 1000"
 

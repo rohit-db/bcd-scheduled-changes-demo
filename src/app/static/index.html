@@ -7,26 +7,30 @@
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-  <header>
+  <script>if (localStorage.getItem("theme") === "dark") document.documentElement.classList.add("dark");</script>
+  <aside class="sidebar">
     <div class="brand">
       <div class="mark">BCD</div>
-      <div>
-        <h1>Trip Intelligence</h1>
-        <div class="sub">Every booking version, compared in real time · Databricks</div>
-      </div>
+      <div><h1>Trip Intelligence</h1><div class="sub">on Databricks</div></div>
     </div>
     <nav>
-      <button data-view="ops" class="active">Live Ops Console</button>
-      <button data-view="analytics">Analytics</button>
-      <button data-view="quality">Data quality</button>
-      <button data-view="rules">Rule Studio</button>
-      <button data-view="traveler">Traveler</button>
+      <button data-view="ops" class="active"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>Live Ops Console</span></button>
+      <button data-view="analytics"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg><span>Analytics</span></button>
+      <button data-view="quality"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg><span>Data quality</span></button>
+      <button data-view="rules"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg><span>Rule Studio</span></button>
+      <button data-view="traveler"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg><span>Traveler</span></button>
     </nav>
-    <div id="live" class="live idle"><i></i><span>Stream idle</span></div>
-  </header>
+    <div class="sidebar-foot">
+      <div id="live" class="live idle"><i></i><span>Stream idle</span></div>
+      <div class="foot-meta">Real-Time Mode · Lakebase · Unity Catalog</div>
+      <button id="theme" class="ghost" title="Toggle light / dark"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg><span>Dark mode</span></button>
+    </div>
+  </aside>
 
   <main>
     <section id="ops" class="view active">
+      <div class="view-head"><div><h2 class="big">Live Ops Console</h2>
+        <p class="muted">Every booking version compared with the previous one, as it happens. Noise is filtered out.</p></div></div>
       <div class="kpis">
         <div class="kpi"><label>Versions received</label><span id="k-versions">–</span><small>last 5 minutes</small><svg class="spark" id="spark-versions"></svg></div>
         <div class="kpi"><label>Significant</label><span id="k-significant">–</span><small>the rest are re-saves</small></div>
@@ -87,7 +91,7 @@
       </div>
       <div class="panel lineage-panel">
         <div class="panel-head"><h2>Lineage and freshness</h2><span class="muted">one copy of the data, from the feed to gold</span></div>
-        <div class="lineage" id="q-lineage"><div class="empty">Checking the analytical tables…</div></div>
+        <div class="lineage" id="q-lineage"><div class="empty">Reading lineage and freshness…</div></div>
       </div>
       <div class="grid2">
         <div class="panel">
@@ -98,7 +102,7 @@
         <div class="panel">
           <div class="panel-head"><h2>Ask Genie</h2><span class="muted">plain English over the governed tables</span></div>
           <div class="chips" id="g-chips"></div>
-          <div class="row ask"><input id="g-q" placeholder="Ask about booking changes, carriers, data quality…" /><button id="g-ask" class="primary">Ask</button></div>
+          <div class="row ask composer"><input id="g-q" placeholder="Ask about booking changes, carriers, data quality…" /><button id="g-ask" class="primary">Ask</button></div>
           <div id="g-out"></div>
           <div class="gov">
             <b>Governed in Unity Catalog</b>
@@ -109,6 +113,8 @@
     </section>
 
     <section id="rules" class="view">
+      <div class="view-head"><div><h2 class="big">Rule Studio</h2>
+        <p class="muted">Business rules in plain English, live on the stream in seconds. No code, no deploy.</p></div></div>
       <div class="split rules">
         <div class="panel">
           <div class="panel-head"><h2>New rule</h2><span class="muted">no code, no redeploy</span></div>
@@ -134,6 +140,8 @@
     </section>
 
     <section id="traveler" class="view">
+      <div class="view-head"><div><h2 class="big">Traveler notifications</h2>
+        <p class="muted">The same event, a fraction of a second later, on the traveler's phone.</p></div></div>
       <div class="traveler-layout">
         <div class="explain">
           <h2>What the traveler sees</h2>
