@@ -177,7 +177,7 @@ function svgEl(tag, attrs = {}) {
 }
 
 // Line/area chart: series = [{key, label, cls, area}], rows = [{x: Date, <key>: number}]
-function lineChart(host, rows, series, { height = 220, yFmt = fmtInt } = {}) {
+function lineChart(host, rows, series, { height = 220, yFmt = fmtInt, lead = false, xFmt = fmtTime } = {}) {
   host.innerHTML = "";
   if (rows.length < 2) { host.innerHTML = `<div class="empty">Waiting for data…</div>`; return; }
   const W = host.clientWidth || 600, H = height, m = { l: 44, r: 12, t: 10, b: 24 };
@@ -193,12 +193,17 @@ function lineChart(host, rows, series, { height = 220, yFmt = fmtInt } = {}) {
   }
   [rows[0], rows[Math.floor(rows.length / 2)], rows[rows.length - 1]].forEach((r, i) => {
     const t = svgEl("text", { x: X(r.x.getTime()), y: H - 6, class: "axis", "text-anchor": ["start", "middle", "end"][i] });
-    t.textContent = fmtTime(r.x); svg.append(t);
+    t.textContent = xFmt(r.x); svg.append(t);
   });
   series.forEach((s) => {
     const pts = rows.map((r) => `${X(r.x.getTime())},${Y(r[s.key] || 0)}`);
     if (s.area) svg.append(svgEl("path", { d: `M${X(xs[0])},${Y(0)} L${pts.join(" L")} L${X(xs[xs.length - 1])},${Y(0)} Z`, class: `area ${s.cls}` }));
     svg.append(svgEl("polyline", { points: pts.join(" "), class: `line ${s.cls}` }));
+    if (lead) {
+      const last = rows[rows.length - 1];
+      svg.append(svgEl("circle", { cx: X(last.x.getTime()), cy: Y(last[s.key] || 0), r: 8, class: "lead-halo" }),
+                 svgEl("circle", { cx: X(last.x.getTime()), cy: Y(last[s.key] || 0), r: 4, class: "lead" }));
+    }
   });
   const cross = svgEl("line", { y1: m.t, y2: H - m.b, class: "cross", visibility: "hidden" });
   svg.append(cross);
@@ -207,20 +212,20 @@ function lineChart(host, rows, series, { height = 220, yFmt = fmtInt } = {}) {
     const box = svg.getBoundingClientRect(), t = x0 + ((evt.clientX - box.left - m.l) / (W - m.l - m.r)) * (x1 - x0);
     const r = rows.reduce((a, b) => (Math.abs(b.x - t) < Math.abs(a.x - t) ? b : a));
     cross.setAttribute("x1", X(r.x.getTime())); cross.setAttribute("x2", X(r.x.getTime())); cross.setAttribute("visibility", "visible");
-    showTip(evt, `<b>${fmtTime(r.x)}</b>` + series.map((s) => `<div><i class="sw ${s.cls}"></i>${s.label}: <b>${yFmt(r[s.key] || 0)}</b></div>`).join(""));
+    showTip(evt, `<b>${xFmt(r.x)}</b>` + series.map((s) => `<div><i class="sw ${s.cls}"></i>${s.label}: <b>${yFmt(r[s.key] || 0)}</b></div>`).join(""));
   });
   hit.addEventListener("mouseleave", () => { cross.setAttribute("visibility", "hidden"); hideTip(); });
   svg.append(hit);
   host.append(svg);
 }
 
-function sparkline(svg, values) {
+function sparkline(svg, values, cls = "") {
   svg.innerHTML = "";
   if (values.length < 2) return;
   const W = svg.clientWidth || 160, H = 28, max = Math.max(...values) || 1, min = Math.min(...values);
   const pts = values.map((v, i) => `${(i / (values.length - 1)) * W},${H - 2 - ((v - min) / (max - min || 1)) * (H - 4)}`);
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
-  svg.append(svgEl("polyline", { points: pts.join(" "), class: "sparkline" }));
+  svg.append(svgEl("polyline", { points: pts.join(" "), class: `sparkline ${cls}` }));
 }
 
 // Horizontal bars; items = [{label, value, note}]
@@ -269,6 +274,7 @@ async function refreshAnalytics() {
   const live = rows.slice(-15);
   sparkline($("#spark-versions"), live.map((r) => r.versions));
   sparkline($("#spark-p50"), live.map((r) => r.p50));
+  renderTiles(a);
   if (!$("#analytics").classList.contains("active")) return;
   const pct = s.versions ? ((100 * s.significant) / s.versions).toFixed(1) : "0";
   $("#a-window").textContent = `Last ${Math.round(s.window_minutes || 0)} minutes, live from Lakebase, the same store the stream writes to`;
@@ -347,7 +353,7 @@ async function askGenie() {
 }
 
 document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => {
-  if (b.dataset.view === "analytics") refreshAnalytics();
+  if (b.dataset.view === "analytics") { refreshAnalytics(); refreshTicker(); }
   if (b.dataset.view === "quality") loadQuality();
 }));
 
@@ -361,3 +367,40 @@ $("#theme").addEventListener("click", () => {
   syncThemeLabel();
 });
 syncThemeLabel();
+
+// ---- live change-type tiles (Ops Console) ----------------------------------------------------------------
+const TILE_TYPES = [["SCHEDULE_CHANGE", "coral"], ["SEAT_REMOVED", "lemon"], ["CONTACT_CHANGED", "purple"],
+  ["PAYMENT_CHANGED", "teal"], ["SEGMENT_ADDED", "indigo"], ["SEGMENT_MODIFIED", "indigo"]];
+function renderTiles(a) {
+  const minutes = [...new Set(a.tag_minutes.map((r) => r.minute))].sort().slice(0, -1);  // newest minute is partial
+  const series = (tag) => minutes.map((m) => Number(a.tag_minutes.find((r) => r.minute === m && r.tag === tag)?.n || 0));
+  $("#tiles").innerHTML = TILE_TYPES.map(([tag, c]) => {
+    const s = series(tag), now5 = s.slice(-5).reduce((x, y) => x + y, 0), prev5 = s.slice(-10, -5).reduce((x, y) => x + y, 0);
+    const d = prev5 ? ((now5 - prev5) / prev5) * 100 : 0, dir = Math.abs(d) < 0.5 ? "flat" : d > 0 ? "up" : "down";
+    return `<div class="tile t-${c}"><span class="tile-label">${human(tag)}</span><b>${fmtInt(now5)}</b>
+      <span class="delta-chip ${dir}">${dir === "up" ? "▲" : dir === "down" ? "▼" : "●"} ${prev5 ? `${d > 0 ? "+" : ""}${d.toFixed(1)}%` : "new"}</span>
+      <svg class="spark tile-spark" data-tag="${tag}"></svg></div>`;
+  }).join("");
+  TILE_TYPES.forEach(([tag, c]) => sparkline($(`.tile-spark[data-tag=${tag}]`), series(tag).slice(-15), `sev-${c}`));
+}
+
+// ---- live ticker (Analytics) ------------------------------------------------------------------------------
+const fmtClock = (d) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+async function refreshTicker() {
+  if (!$("#analytics").classList.contains("active")) return;
+  try {
+    const rows = (await api("/api/ticker")).slice(0, -1).map((r) => ({ x: new Date(r.t), significant: Number(r.significant) }));
+    lineChart($("#c-ticker"), rows, [{ key: "significant", label: "Significant changes", cls: "s-sig", area: true }],
+      { height: 180, lead: true, xFmt: fmtClock });
+  } catch (e) { console.error(e); }
+}
+setInterval(refreshTicker, 2000);
+
+// ---- "?" help on panel titles ----------------------------------------------------------------------------
+document.querySelectorAll("[data-help]").forEach((h) => {
+  const q = document.createElement("span");
+  q.className = "help"; q.textContent = "?"; q.tabIndex = 0;
+  q.addEventListener("mousemove", (evt) => showTip(evt, esc(h.dataset.help)));
+  q.addEventListener("mouseleave", hideTip);
+  h.append(q);
+});

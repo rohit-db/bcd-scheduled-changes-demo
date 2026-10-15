@@ -25,6 +25,9 @@ ANALYTICS_SQL = {
     "change_mix": f"""{_WINDOW}
         SELECT t AS tag, count(*) AS n FROM w, unnest(tags) AS t
         WHERE t NOT IN ('NO_SIGNIFICANT_CHANGE', 'STALE_VERSION', 'NEW_TRIP') GROUP BY 1 ORDER BY 2 DESC""",
+    "tag_minutes": f"""{_WINDOW}
+        SELECT date_trunc('minute', written_ts) AS minute, t AS tag, count(*) AS n FROM w, unnest(tags) AS t
+        WHERE t NOT IN ('NO_SIGNIFICANT_CHANGE', 'STALE_VERSION', 'NEW_TRIP') GROUP BY 1, 2 ORDER BY 1""",
     "schedule_routes": f"""{_WINDOW}
         SELECT sc->'old'->>'carrier' AS carrier,
                (sc->'old'->>'origin') || ' → ' || (sc->'old'->>'destination') AS route,
@@ -42,6 +45,12 @@ ANALYTICS_SQL = {
         SELECT type, status, count(*) AS n FROM action_outbox
         WHERE created_ts >= (SELECT min(written_ts) FROM w) GROUP BY 1, 2 ORDER BY 3 DESC""",
 }
+
+
+TICKER_SQL = f"""
+    SELECT to_timestamp(floor(extract(epoch FROM written_ts) / 5) * 5) AS t,
+           count(*) AS versions, count(*) FILTER (WHERE {_SIG}) AS significant
+    FROM change_events WHERE written_ts > now() - interval '3 minutes' GROUP BY 1 ORDER BY 1"""
 
 
 def quality_sql(schema: str) -> dict:

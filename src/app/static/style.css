@@ -236,7 +236,7 @@ td button { height: 24px; padding: 0 8px; font-size: 12px; }
 .svgchart .axis { fill: var(--muted-foreground); font-size: 11px; font-variant-numeric: tabular-nums; }
 .svgchart .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .svgchart .line.s-all { stroke: var(--chart-1-soft); } .svgchart .area.s-all { fill: var(--chart-1); opacity: .08; }
-.svgchart .line.s-sig { stroke: var(--chart-1); }
+.svgchart .line.s-sig { stroke: var(--chart-1); } .svgchart .area.s-sig { fill: var(--chart-1); opacity: .14; }
 .svgchart .cross { stroke: var(--input); stroke-dasharray: 3 3; }
 .svgchart .barfill { fill: var(--chart-1); } .svgchart .barfill.slow { fill: var(--chart-1-soft); }
 .legend { font-size: 12px; color: var(--muted-foreground); display: flex; align-items: center; gap: 4px; }
@@ -291,7 +291,31 @@ details.sql pre { white-space: pre-wrap; background: var(--code-bg); padding: 10
 .gov { margin-top: 16px; padding: 10px 12px; border: 1px solid var(--border); background: var(--muted); border-radius: var(--radius);
   font-size: 12px; line-height: 16px; display: flex; flex-direction: column; gap: 4px; }
 
+/* ---- live tiles, ticker, help (patterns from the RTM + Lakebase reference demo) --------------------- */
+.tiles-panel { min-height: 0; max-height: none; margin-bottom: 16px; padding-bottom: 14px; }
+.tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.tile { position: relative; background: var(--muted); border: 1px solid var(--border); border-left: 3px solid var(--input);
+  border-radius: var(--radius); padding: 8px 10px 4px; display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 0 8px; }
+.tile-label { grid-column: 1 / -1; font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted-foreground); }
+.tile b { font: 600 22px/30px ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+.tile .tile-spark { grid-column: 1 / -1; height: 26px; margin-top: 2px; }
+.tile.t-coral { border-left-color: var(--sev-coral); } .tile.t-lemon { border-left-color: var(--sev-lemon); }
+.tile.t-purple { border-left-color: var(--sev-purple); } .tile.t-teal { border-left-color: var(--sev-teal); }
+.tile.t-indigo { border-left-color: var(--sev-indigo); }
+.sparkline.sev-coral { stroke: var(--sev-coral); } .sparkline.sev-lemon { stroke: var(--sev-lemon); }
+.sparkline.sev-purple { stroke: var(--sev-purple); } .sparkline.sev-teal { stroke: var(--sev-teal); } .sparkline.sev-indigo { stroke: var(--sev-indigo); }
+.delta-chip { font: 600 11px/16px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.delta-chip.up { color: var(--success); } .delta-chip.down { color: var(--destructive); } .delta-chip.flat { color: var(--muted-foreground); }
+#ops .split .panel { max-height: calc(100vh - 470px); min-height: 360px; }
+.svgchart .lead { fill: var(--chart-1); } .svgchart .lead-halo { fill: var(--chart-1); opacity: .25; animation: halo 1.6s infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes halo { from { transform: scale(.6); opacity: .45; } to { transform: scale(1.6); opacity: 0; } }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); display: inline-block; margin-right: 6px; animation: pulse 1.6s infinite; }
+.help { display: inline-grid; place-items: center; width: 16px; height: 16px; margin-left: 6px; border-radius: 50%; border: 1px solid var(--input);
+  font-size: 10px; font-weight: 600; color: var(--muted-foreground); cursor: help; vertical-align: 1px; }
+.help:hover { border-color: var(--primary); color: var(--primary); }
+
 @media (max-width: 1200px) {
+  .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   body { grid-template-columns: 64px minmax(0, 1fr); } .sidebar .brand div:last-child, nav button span, .sidebar-foot { display: none; }
   .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } .split, .split.rules, .grid2, .traveler-layout { grid-template-columns: 1fr; }
 }

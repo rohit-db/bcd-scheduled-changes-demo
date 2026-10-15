@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from app import db
 from app.feed import FeedBroadcaster, TTLValue
 from app.freshness import BackgroundTTL
-from app.insights import ANALYTICS_SQL, ANALYTICS_WINDOW_ROWS, quality_checks, quality_sql, shape_genie
+from app.insights import ANALYTICS_SQL, ANALYTICS_WINDOW_ROWS, TICKER_SQL, quality_checks, quality_sql, shape_genie
 from app.rule_drafting import SYSTEM_PROMPT, parse_draft
 from trip_intel.jsonlogic import apply, truthy, validate
 from trip_intel.rules import context
@@ -242,6 +242,14 @@ _analytics = TTLValue(_compute_analytics, ttl_seconds=5)
 @app.get("/api/analytics")
 def analytics():
     return _analytics.get()
+
+
+_ticker = TTLValue(lambda: db.query(TICKER_SQL), ttl_seconds=1.5)
+
+
+@app.get("/api/ticker")
+def ticker():
+    return _ticker.get()
 
 
 # ---- data quality & governance (warehouse over the Delta tables) -------------------------------------------

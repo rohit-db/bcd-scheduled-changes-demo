@@ -220,10 +220,10 @@ resources:
               - --secret-scope
               - ${var.secret_scope}
               - --checkpoint
-              - ${var.checkpoint_root}/rtm_demo_20261008
+              - ${var.checkpoint_root}/rtm_demo_20261015
               # Start past every trip generated so far: the idempotent sink skips trips it has already seen.
               - --seq-offset
-              - "2400000"
+              - "3600000"
           libraries:
             - pypi:
                 package: psycopg[binary]>=3.2

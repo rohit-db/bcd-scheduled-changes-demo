@@ -39,13 +39,18 @@
         <div class="kpi lane rt" title="Same feed and same change logic as the analytical tier; tuned for milliseconds"><label>Operational tier · real-time</label><span id="k-rtm">–</span><small>ops, travelers, services</small></div>
         <div class="kpi lane batch" title="Same feed and same change logic as the operational tier; refreshed on a schedule"><label>Analytical tier · hourly</label><span id="k-batch">–</span><small>reporting, Genie, finance</small></div>
       </div>
+      <div class="panel tiles-panel">
+        <div class="panel-head"><h2 data-help="Each tile counts versions with that kind of change in the last 5 minutes, compared with the 5 minutes before. The line is the last 15 minutes.">Change types (live)</h2>
+          <span class="muted">last 5 minutes · vs the 5 before</span></div>
+        <div class="tiles" id="tiles"></div>
+      </div>
       <div class="split">
         <div class="panel">
-          <div class="panel-head"><h2>Significant changes</h2><span class="muted">noise filtered out · hover to pause</span></div>
+          <div class="panel-head"><h2 data-help="Only versions where something changed that matters. Each row shows how long after the event the stream decided, and which business rules fired.">Significant changes</h2><span class="muted">noise filtered out · hover to pause</span></div>
           <ul id="feed"></ul>
         </div>
         <div class="panel">
-          <div class="panel-head"><h2 id="trip-title">Booking history</h2><span id="trip-sub" class="muted">click a change to see every version</span></div>
+          <div class="panel-head"><h2 id="trip-title" data-help="Every version of one booking, each compared with the one before it. Grey versions are re-saves with no business change.">Booking history</h2><span id="trip-sub" class="muted">click a change to see every version</span></div>
           <div id="timeline"><div class="empty">Select a booking on the left.</div></div>
         </div>
       </div>
@@ -59,7 +64,12 @@
       <div class="kpis" id="a-kpis"></div>
       <div class="grid2">
         <div class="panel chart-panel wide">
-          <div class="panel-head"><h2>Booking versions per minute</h2>
+          <div class="panel-head"><h2 data-help="Significant changes detected by the Real-Time Mode stream, in 5-second buckets, refreshed every 2 seconds.">Significant changes, live</h2>
+            <span class="legend"><span class="live-dot"></span>every 5 seconds · last 3 minutes</span></div>
+          <div class="chart" id="c-ticker"></div>
+        </div>
+        <div class="panel chart-panel wide">
+          <div class="panel-head"><h2 data-help="All booking versions received per minute, and how many of them were significant. The gap between the two lines is the noise that never reaches downstream systems.">Booking versions per minute</h2>
             <span class="legend"><i class="sw sw-all"></i>All versions <i class="sw sw-sig"></i>Significant</span></div>
           <div class="chart" id="c-volume"></div>
         </div>
@@ -68,7 +78,7 @@
           <div id="c-mix"></div>
         </div>
         <div class="panel chart-panel">
-          <div class="panel-head"><h2>Detection latency, event → decision</h2><span class="muted">distribution, 50 ms buckets</span></div>
+          <div class="panel-head"><h2 data-help="How long after the booking version was created the stream had compared it, tagged it and evaluated the rules.">Detection latency, event → decision</h2><span class="muted">distribution, 50 ms buckets</span></div>
           <div class="chart" id="c-latency"></div>
         </div>
         <div class="panel chart-panel">
@@ -90,17 +100,17 @@
         <span class="muted" id="q-updated"></span>
       </div>
       <div class="panel lineage-panel">
-        <div class="panel-head"><h2>Lineage and freshness</h2><span class="muted">one copy of the data, from the feed to gold</span></div>
+        <div class="panel-head"><h2 data-help="One copy of the data: the stream writes to Lakebase, Lakebase's change data feed copies every row to Delta, and the pipeline builds silver and gold from it. Row counts and ages are live.">Lineage and freshness</h2><span class="muted">one copy of the data, from the feed to gold</span></div>
         <div class="lineage" id="q-lineage"><div class="empty">Reading lineage and freshness…</div></div>
       </div>
       <div class="grid2">
         <div class="panel">
-          <div class="panel-head"><h2>Data-quality checks</h2><span class="muted">expectations + cross-layer reconciliation</span></div>
+          <div class="panel-head"><h2 data-help="Pipeline expectations (rows dropped or flagged) and row counts reconciled across every layer, recomputed every minute.">Data-quality checks</h2><span class="muted">expectations + cross-layer reconciliation</span></div>
           <ul class="checks" id="q-checks"></ul>
           <div class="kpis two" id="q-complete"></div>
         </div>
         <div class="panel">
-          <div class="panel-head"><h2>Ask Genie</h2><span class="muted">plain English over the governed tables</span></div>
+          <div class="panel-head"><h2 data-help="Genie writes SQL over the governed tables and answers in plain English, with the asker's own permissions. No dashboard to build.">Ask Genie</h2><span class="muted">plain English over the governed tables</span></div>
           <div class="chips" id="g-chips"></div>
           <div class="row ask composer"><input id="g-q" placeholder="Ask about booking changes, carriers, data quality…" /><button id="g-ask" class="primary">Ask</button></div>
           <div id="g-out"></div>
