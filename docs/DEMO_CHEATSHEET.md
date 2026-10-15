@@ -38,14 +38,14 @@ Databricks reference demo.
 
 | Time | Show | Say (one line) |
 |---|---|---|
-| 0:00–0:04 | Deck 1–3 | Their problem in their numbers. Slide 3: "today you run two stacks: Lambda/EventBridge for ops, S3 + hourly batch for analytics. Two versions of the truth, an hour of lag, two sets of governance." |
-| 0:04–0:08 | Deck 4–5 | "Read the feed once, decide once"; the architecture. |
+| 0:00–0:04 | Deck 1–3 (or skip) | Their problem in their numbers; "two stacks: Lambda/EventBridge for ops, S3 + hourly batch for analytics." |
+| 0:04–0:08 | **App: Architecture** | "The Databricks platform" view: Lakeflow, Lakehouse, Lakebase on one open lake, one Unity Catalog; green dots = running in this demo. Then diagram 1 (reference architecture). Diagrams 2–6 on demand. |
 | 0:08–0:14 | **Notebook** cells 1 → 3 | Real-Time Mode live with no sink: every version diffed, `decided_ms_after_event` in the low hundreds of ms. |
 | 0:14–0:22 | **App: Live Ops Console** | KPIs + sparklines; change-type tiles (▲/▼ vs the previous 5 min); click a schedule change → timeline. "This is your track-changes Lambda as one stateful step." |
 | 0:22–0:30 | **App: Analytics** | Live 5-second ticker; versions vs significant (the gap is noise that never reaches your systems); latency distribution; schedule changes by route; rules fired → actions. "Same Lakebase, no warehouse, no dashboard to build." |
 | 0:30–0:38 | **App: Data quality** | Lineage strip (Kinesis → Lakebase → change feed → silver → gold, live counts); checks: expectations + every decision reconciled across layers; Ask Genie a steward question. "This is the governance and data-quality tool, on the same copy of the data, with no UI to build." |
 | 0:38–0:46 | **App: Rule Studio → Traveler** | Their rule (or the email-change rule) live in ~5 s; traveler accepts; EventBridge entry (SQL tab). Deck 9: Lakebase is one sink, EventBridge can be another. |
-| 0:46–0:52 | Deck 10–12 + code slides as needed | 73 ms at peak on one node; RTM vs micro-batch; cost. Databricks' own claim: sub-100 ms and >260k events/s at sub-100 ms p99. |
+| 0:46–0:52 | Architecture → diagram 2 (+ deck 10–12 if needed) | 73 ms at peak on one node; RTM vs micro-batch; cost. Databricks' own claim: sub-100 ms and >260k events/s at sub-100 ms p99. |
 | 0:52–1:00 | Deck 17 | Four steps to production; **ask: which consumers truly need sub-second?** |
 
 ## Numbers to have ready
