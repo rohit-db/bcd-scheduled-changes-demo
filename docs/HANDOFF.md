@@ -1,3 +1,21 @@
+# Handoff — 2026-10-23 (after the 10/15 demo)
+
+## Since the demo
+- **Architecture tab** added to the app (commit `fc56473`; app repo `be2941b` deployed to UAT 10/15): "The Databricks
+  platform" view (Lakeflow / Lakehouse / Lakebase on one open lake + Unity Catalog, green dot = in this demo) plus
+  README diagrams 1–6 from `src/app/static/arch/`. The demo now runs from the app; the deck is optional.
+- **EPAM follow-ups (Aleksei Kurinov, Denis)** — drafts written, not sent from here:
+  - POC questions: source/Lakebase access, `foreach(LakebaseSink)` bottlenecks, why Lakebase, Delta CDF vs
+    `transformWithState` (CDF fine if nothing needs sub-second).
+  - Artifacts + pricing: point them to the code in the UAT workspace bundle folder (not the GitHub repos — both
+    private and the full repo has internal notes); pricing = "BCD is on AWS Enterprise; work with us on sizing" (cc Donald).
+  - DQX question: DQX vs Lakeflow expectations vs Data Quality Monitoring are complementary, not competing; Labs = best-effort
+    support, no SLA; no public large-scale migration case study. Internal deck names Bosch/Mercedes — do NOT name externally.
+- **UAT teardown status unknown on 10/23** (CLI login expired). Check and stop: stream run 241040172461397,
+  dispatcher, app `databricks-bcd-trip-intel`, local app on :8766. Lakebase still up (decide).
+
+---
+
 # Handoff — state as of 2026-10-15 ~12:15 ET (BCD demo TODAY 2:00–3:00pm ET, in BCD's UAT workspace)
 
 ## Today (10/15) — read this first
